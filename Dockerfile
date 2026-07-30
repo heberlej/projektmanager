@@ -11,9 +11,10 @@ RUN apt-get update \
 # ---------------------------------------------------------------------------
 FROM base AS deps
 COPY package.json package-lock.json* ./
-# package-lock.json entsteht beim ersten lokalen `npm install`; solange es fehlt,
-# faellt der Build auf `npm install` zurueck.
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Die Lockdatei wurde auf arm64 erzeugt. npm ci sollte auf x64 trotzdem greifen,
+# weil alle plattformspezifischen optionalDependencies mitgeschrieben sind -
+# faellt es doch aus, wird die Lockdatei neu aufgebaut statt den Build zu kippen.
+RUN if [ -f package-lock.json ]; then npm ci || npm install; else npm install; fi
 
 # ---------------------------------------------------------------------------
 FROM base AS builder
