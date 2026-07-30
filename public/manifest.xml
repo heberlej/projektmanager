@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Outlook-Add-in fuer den Projektmanager.
+
+  Sideload im "neuen Outlook" / OWA:
+    Einstellungen -> Allgemein -> Add-Ins verwalten -> "Meine Add-Ins"
+    -> Benutzerdefinierte Add-Ins -> "Aus Datei hinzufuegen" -> diese Datei.
+
+  Voraussetzung: https://pm.localhost muss erreichbar sein UND das mkcert-Root-
+  Zertifikat im Windows-Zertifikatspeicher liegen, sonst laedt Outlook die
+  Seite nicht.
+-->
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+  xsi:type="MailApp">
+
+  <Id>e853c6cd-6411-4d7c-88b7-b42281b14a9f</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Jan Heberle</ProviderName>
+  <DefaultLocale>de-DE</DefaultLocale>
+  <DisplayName DefaultValue="Projektmanager" />
+  <Description DefaultValue="Mail an ein Projekt anheften oder daraus ein neues Projekt anlegen." />
+  <IconUrl DefaultValue="https://pm.localhost/addin/icon-64.png" />
+  <HighResolutionIconUrl DefaultValue="https://pm.localhost/addin/icon-80.png" />
+  <SupportUrl DefaultValue="https://pm.localhost/" />
+
+  <AppDomains>
+    <AppDomain>https://pm.localhost</AppDomain>
+  </AppDomains>
+
+  <Hosts>
+    <Host Name="Mailbox" />
+  </Hosts>
+
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.8" />
+    </Sets>
+  </Requirements>
+
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://pm.localhost/addin/taskpane" />
+        <RequestedHeight>420</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+
+  <!-- ReadItem reicht: Betreff, Absender, internetMessageId und
+       getAttachmentContentAsync sind damit abgedeckt. -->
+  <Permissions>ReadItem</Permissions>
+
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read" />
+  </Rule>
+
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.8">
+        <bt:Set Name="Mailbox" />
+      </bt:Sets>
+    </Requirements>
+
+    <Hosts>
+      <Host xsi:type="MailHost">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="MessageReadCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="pmGroup">
+                <Label resid="groupLabel" />
+                <Control xsi:type="Button" id="pmOpenTaskpane">
+                  <Label resid="buttonLabel" />
+                  <Supertip>
+                    <Title resid="buttonLabel" />
+                    <Description resid="buttonTip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon16" />
+                    <bt:Image size="32" resid="icon32" />
+                    <bt:Image size="80" resid="icon80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="taskpaneUrl" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon16" DefaultValue="https://pm.localhost/addin/icon-16.png" />
+        <bt:Image id="icon32" DefaultValue="https://pm.localhost/addin/icon-32.png" />
+        <bt:Image id="icon80" DefaultValue="https://pm.localhost/addin/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="taskpaneUrl" DefaultValue="https://pm.localhost/addin/taskpane" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="groupLabel" DefaultValue="Projektmanager" />
+        <bt:String id="buttonLabel" DefaultValue="Zu Projekt" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="buttonTip" DefaultValue="Diese Mail an ein Projekt anheften oder ein neues Projekt daraus anlegen." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

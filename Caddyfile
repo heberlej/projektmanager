@@ -1,0 +1,25 @@
+{
+	# Keine ACME-Ausstellung: das Zertifikat kommt von mkcert.
+	auto_https off
+	admin off
+}
+
+http://pm.localhost {
+	redir https://pm.localhost{uri} permanent
+}
+
+https://pm.localhost {
+	tls /etc/caddy/certs/pm.localhost.pem /etc/caddy/certs/pm.localhost-key.pem
+
+	encode zstd gzip
+
+	# Auftrags-PDFs koennen groesser sein als der Caddy-Default.
+	request_body {
+		max_size 32MB
+	}
+
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+}

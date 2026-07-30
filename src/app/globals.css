@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Fokus durchgaengig sichtbar - die App wird viel per Tastatur bedient. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-600;
+  }
+}
+
+@layer components {
+  .prose-note {
+    @apply text-sm leading-relaxed text-slate-700;
+  }
+  .prose-note h1 {
+    @apply mt-4 mb-2 text-base font-semibold text-slate-900;
+  }
+  .prose-note h2,
+  .prose-note h3 {
+    @apply mt-3 mb-1 text-sm font-semibold text-slate-900;
+  }
+  .prose-note p {
+    @apply my-2;
+  }
+  .prose-note ul {
+    @apply my-2 list-disc pl-5;
+  }
+  .prose-note ol {
+    @apply my-2 list-decimal pl-5;
+  }
+  .prose-note li {
+    @apply my-0.5;
+  }
+  .prose-note a {
+    @apply text-blue-700 underline underline-offset-2;
+  }
+  .prose-note code {
+    @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-xs;
+  }
+  .prose-note pre {
+    @apply my-2 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100;
+  }
+  .prose-note pre code {
+    @apply bg-transparent p-0 text-slate-100;
+  }
+  .prose-note blockquote {
+    @apply my-2 border-l-2 border-slate-300 pl-3 text-slate-600;
+  }
+  .prose-note table {
+    @apply my-2 w-full border-collapse text-xs;
+  }
+  .prose-note th,
+  .prose-note td {
+    @apply border border-slate-200 px-2 py-1 text-left;
+  }
+  .prose-note hr {
+    @apply my-3 border-slate-200;
+  }
+}
+
+/* Karte, die gerade gezogen wird */
+.dragging {
+  @apply opacity-40;
+}
+
+/* Spalte, ueber der die Karte schwebt */
+.drop-target {
+  @apply ring-2 ring-blue-400 ring-offset-1;
+}

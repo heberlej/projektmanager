@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Skripte laufen im Container - CRLF wuerde sie unbrauchbar machen.
+*.sh text eol=lf
+Dockerfile text eol=lf
+Caddyfile text eol=lf
+docker-entrypoint.sh text eol=lf
+
+*.png binary

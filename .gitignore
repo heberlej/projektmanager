@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.local
+
+# mkcert-Zertifikate sind maschinenspezifisch und gehoeren nicht ins Repo
+certs/*
+!certs/.gitkeep
+
+uploads/
+backups/
+.DS_Store

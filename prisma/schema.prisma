@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  NEU
+  IN_PLANUNG
+  IN_ARBEIT
+  WARTET_AUF_KUNDE
+  BLOCKIERT
+  ABGESCHLOSSEN
+}
+
+enum Priority {
+  NIEDRIG
+  NORMAL
+  HOCH
+}
+
+enum AttachmentSource {
+  UPLOAD
+  OUTLOOK
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  customer    String
+  status      ProjectStatus @default(NEU)
+  priority    Priority      @default(NORMAL)
+  description String?
+  archived    Boolean       @default(false)
+  /// Sortierung innerhalb einer Board-Spalte
+  position    Int           @default(0)
+  /// Nur Herkunftsvermerk - Vorlageninhalte werden beim Anlegen kopiert, nicht referenziert.
+  templateId  String?
+  template    Template?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tags         ProjectTag[]
+  phases       Phase[]
+  tasks        Task[]
+  notes        Note[]
+  attachments  Attachment[]
+  mailLinks    MailLink[]
+  statusEvents StatusEvent[]
+
+  @@index([status, archived])
+  @@index([customer])
+  @@index([updatedAt])
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  /// Tailwind-Farbschluessel, siehe src/lib/status.ts
+  color    String       @default("slate")
+  projects ProjectTag[]
+}
+
+model ProjectTag {
+  projectId String
+  tagId     String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, tagId])
+  @@index([tagId])
+}
+
+model Phase {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  position  Int     @default(0)
+  tasks     Task[]
+
+  @@index([projectId, position])
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phaseId   String?
+  phase     Phase?   @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  title     String
+  done      Boolean  @default(false)
+  position  Int      @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, done])
+  @@index([phaseId, position])
+}
+
+model Template {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  phases      TemplatePhase[]
+  projects    Project[]
+}
+
+model TemplatePhase {
+  id         String         @id @default(cuid())
+  templateId String
+  template   Template       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title      String
+  position   Int            @default(0)
+  tasks      TemplateTask[]
+
+  @@index([templateId, position])
+}
+
+model TemplateTask {
+  id              String        @id @default(cuid())
+  templatePhaseId String
+  phase           TemplatePhase @relation(fields: [templatePhaseId], references: [id], onDelete: Cascade)
+  title           String
+  position        Int           @default(0)
+  notes           String?
+
+  @@index([templatePhaseId, position])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  body      String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, createdAt])
+}
+
+model Attachment {
+  id          String           @id @default(cuid())
+  projectId   String
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  filename    String
+  mime        String
+  sizeBytes   Int
+  /// Relativ zu UPLOAD_DIR: <projectId>/<uuid>-<filename>
+  storagePath String
+  source      AttachmentSource @default(UPLOAD)
+  createdAt   DateTime         @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model MailLink {
+  id                String   @id @default(cuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  internetMessageId String   @unique
+  restId            String?
+  subject           String
+  fromAddress       String
+  receivedAt        DateTime
+  deeplinkUrl       String?
+  linkedAt          DateTime @default(now())
+
+  @@index([projectId, receivedAt])
+}
+
+model StatusEvent {
+  id        String         @id @default(cuid())
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  from      ProjectStatus?
+  to        ProjectStatus
+  changedAt DateTime       @default(now())
+
+  @@index([projectId, changedAt])
+}
