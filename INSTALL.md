@@ -236,7 +236,24 @@ Entrypoint findet jetzt Migrationen, ruft `migrate deploy` auf, und das versucht
 `0_init` auf bereits bestehende Tabellen anzuwenden – Fehlschlag mit
 *relation already exists*, der Container kommt nicht hoch.
 
-Richtige Reihenfolge – erst bauen, dann den Stand eintragen, **dann** starten:
+### Wenn noch keine Daten drin sind: neu aufsetzen
+
+Der einfachste Weg. `-v` wirft die Volumes weg, danach laufen die Migrationen
+auf einer leeren Datenbank sauber von vorn durch und der Seed legt Tags und
+Vorlagen neu an:
+
+```bash
+git pull
+docker compose down -v
+docker compose up -d --build
+```
+
+> **`down -v` löscht alle Daten und alle hochgeladenen Dateien.** Ohne das `-v`
+> bleiben die Volumes stehen – dann gilt der Abschnitt darunter.
+
+### Wenn Daten erhalten bleiben sollen
+
+Erst bauen, dann den Stand eintragen, **dann** starten:
 
 ```bash
 git pull
