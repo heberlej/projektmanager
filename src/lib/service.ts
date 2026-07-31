@@ -1,8 +1,16 @@
 import { prisma } from "./db";
 import { storeFile } from "./storage";
-import type { MailInput, ProjectCreateInput } from "./validation";
+import type { MailInput, ProjectCreateInput, ScheduleInput } from "./validation";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { STALE_AFTER_DAYS, STATUS_ORDER, type Status } from "./status";
+import {
+  STALE_AFTER_DAYS,
+  STATUS_ORDER,
+  TASK_DONE,
+  TASK_STATUS_ORDER,
+  type Status,
+  type TaskStatus,
+} from "./status";
+import { byStart, type CalendarEntry } from "./planning";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
@@ -153,6 +161,271 @@ export async function templateFromProject(projectId: string, name: string, descr
   });
 }
 
+// --- Aufgaben und Aufgabenboard ---------------------------------------------
+
+export type BoardTask = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  notes: string | null;
+  plannedStart: Date | null;
+  plannedEnd: Date | null;
+  projectId: string | null;
+  projectName: string | null;
+  customer: string | null;
+  phaseTitle: string | null;
+};
+
+export type TaskFilter = {
+  q?: string;
+  projectId?: string;
+  /** Nur Aufgaben, die an keinem Projekt haengen. */
+  ohneProjekt?: boolean;
+};
+
+/** Aufgaben quer ueber alle Projekte, fuer das Board unter /aufgaben. */
+export async function listBoardTasks(filter: TaskFilter = {}): Promise<BoardTask[]> {
+  const where: Prisma.TaskWhereInput = {
+    // Aufgaben archivierter Projekte gehoeren nicht aufs Board; projektlose schon.
+    OR: [{ project: { archived: false } }, { projectId: null }],
+    ...(filter.projectId ? { projectId: filter.projectId } : {}),
+    ...(filter.ohneProjekt ? { projectId: null } : {}),
+    ...(filter.q
+      ? {
+          AND: [
+            {
+              OR: [
+                { title: { contains: filter.q, mode: "insensitive" } },
+                { notes: { contains: filter.q, mode: "insensitive" } },
+                { project: { name: { contains: filter.q, mode: "insensitive" } } },
+                { project: { customer: { contains: filter.q, mode: "insensitive" } } },
+              ],
+            },
+          ],
+        }
+      : {}),
+  };
+
+  const rows = await prisma.task.findMany({
+    where,
+    orderBy: [{ position: "asc" }, { updatedAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      notes: true,
+      plannedStart: true,
+      plannedEnd: true,
+      project: { select: { id: true, name: true, customer: true } },
+      phase: { select: { title: true } },
+    },
+  });
+
+  return rows.map((t) => ({
+    id: t.id,
+    title: t.title,
+    status: t.status as TaskStatus,
+    notes: t.notes,
+    plannedStart: t.plannedStart,
+    plannedEnd: t.plannedEnd,
+    projectId: t.project?.id ?? null,
+    projectName: t.project?.name ?? null,
+    customer: t.project?.customer ?? null,
+    phaseTitle: t.phase?.title ?? null,
+  }));
+}
+
+async function nextTaskPosition(tx: Tx, status: TaskStatus): Promise<number> {
+  const last = await tx.task.aggregate({ where: { status }, _max: { position: true } });
+  return (last._max.position ?? 0) + 1;
+}
+
+/** Statuswechsel einer Aufgabe; landet hinten in der Zielspalte. */
+export async function changeTaskStatus(taskId: string, to: TaskStatus) {
+  const current = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { status: true, projectId: true },
+  });
+  if (!current || current.status === to) return current?.projectId ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.update({
+      where: { id: taskId },
+      data: { status: to, position: await nextTaskPosition(tx, to) },
+    });
+    if (current.projectId) {
+      await tx.project.update({ where: { id: current.projectId }, data: { updatedAt: new Date() } });
+    }
+  });
+  return current.projectId;
+}
+
+export type TaskCreateData = {
+  title: string;
+  projectId?: string | null;
+  phaseId?: string | null;
+  status?: TaskStatus;
+  notes?: string | null;
+  plannedStart?: Date | null;
+  plannedEnd?: Date | null;
+};
+
+/**
+ * Legt eine Aufgabe an - mit oder ohne Projekt. Eine Phase ohne Projekt gibt es
+ * nicht, deshalb wird phaseId in dem Fall verworfen statt einen Fehler zu werfen.
+ */
+export async function createTask(data: TaskCreateData) {
+  const projectId = data.projectId || null;
+  const phaseId = projectId ? data.phaseId || null : null;
+  const status = data.status ?? "OFFEN";
+
+  return prisma.$transaction(async (tx) => {
+    const task = await tx.task.create({
+      data: {
+        title: data.title,
+        projectId,
+        phaseId,
+        status,
+        notes: data.notes || null,
+        plannedStart: data.plannedStart ?? null,
+        plannedEnd: data.plannedEnd ?? null,
+        position: await nextTaskPosition(tx, status),
+      },
+    });
+    if (projectId) {
+      await tx.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+    }
+    return task;
+  });
+}
+
+/** Zaehlt die Spalten fuer die Kopfzeile des Boards. */
+export async function taskCountsByStatus(): Promise<Record<TaskStatus, number>> {
+  const rows = await prisma.task.groupBy({
+    by: ["status"],
+    where: { OR: [{ project: { archived: false } }, { projectId: null }] },
+    _count: { _all: true },
+  });
+  const counts = Object.fromEntries(TASK_STATUS_ORDER.map((s) => [s, 0])) as Record<TaskStatus, number>;
+  for (const row of rows) counts[row.status as TaskStatus] = row._count._all;
+  return counts;
+}
+
+// --- Geplante Termine -------------------------------------------------------
+
+/** Setzt oder loescht den geplanten Termin eines Projekts, einer Phase oder einer Aufgabe. */
+export async function setSchedule(input: ScheduleInput) {
+  const data = { plannedStart: input.start, plannedEnd: input.end };
+
+  switch (input.kind) {
+    case "PROJEKT":
+      await prisma.project.update({ where: { id: input.id }, data });
+      return;
+    case "PHASE":
+      await prisma.phase.update({ where: { id: input.id }, data });
+      return;
+    case "AUFGABE":
+      await prisma.task.update({ where: { id: input.id }, data });
+      return;
+  }
+}
+
+/** Nur Eintraege mit vollstaendigem Termin - halbe gibt es laut Schema nicht. */
+const terminiert = {
+  plannedStart: { not: null },
+  plannedEnd: { not: null },
+} satisfies Prisma.ProjectWhereInput;
+
+const projektSelect = { select: { id: true, name: true, customer: true } };
+
+/**
+ * Alle Termine, die sich mit [from, to) ueberschneiden - also auch Bloecke, die
+ * vor dem Zeitraum beginnen und hineinragen. Archivierte Projekte bleiben aussen vor.
+ */
+export async function calendarEntries(from: Date, to: Date): Promise<CalendarEntry[]> {
+  const ueberlappt = { plannedStart: { lt: to }, plannedEnd: { gte: from } };
+
+  const [projects, phases, tasks] = await Promise.all([
+    prisma.project.findMany({
+      where: { archived: false, ...terminiert, ...ueberlappt },
+      select: {
+        id: true,
+        name: true,
+        customer: true,
+        status: true,
+        plannedStart: true,
+        plannedEnd: true,
+      },
+    }),
+    prisma.phase.findMany({
+      where: { project: { archived: false }, ...terminiert, ...ueberlappt },
+      select: { id: true, title: true, plannedStart: true, plannedEnd: true, project: projektSelect },
+    }),
+    prisma.task.findMany({
+      // Aufgaben ohne Projekt gehoeren mit in den Kalender - sie koennen per
+      // Definition nicht zu einem archivierten Projekt gehoeren.
+      where: {
+        OR: [{ project: { archived: false } }, { projectId: null }],
+        ...terminiert,
+        ...ueberlappt,
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        plannedStart: true,
+        plannedEnd: true,
+        project: projektSelect,
+      },
+    }),
+  ]);
+
+  const entries: CalendarEntry[] = [
+    ...projects.map((p) => ({
+      id: p.id,
+      kind: "PROJEKT" as const,
+      title: p.name,
+      projectId: p.id,
+      projectName: p.name,
+      customer: p.customer,
+      start: p.plannedStart!,
+      end: p.plannedEnd!,
+      done: p.status === "ABGESCHLOSSEN",
+    })),
+    ...phases.map((p) => ({
+      id: p.id,
+      kind: "PHASE" as const,
+      title: p.title,
+      projectId: p.project.id,
+      projectName: p.project.name,
+      customer: p.project.customer,
+      start: p.plannedStart!,
+      end: p.plannedEnd!,
+      done: false,
+    })),
+    ...tasks.map((t) => ({
+      id: t.id,
+      kind: "AUFGABE" as const,
+      title: t.title,
+      projectId: t.project?.id ?? null,
+      projectName: t.project?.name ?? null,
+      customer: t.project?.customer ?? null,
+      start: t.plannedStart!,
+      end: t.plannedEnd!,
+      done: t.status === TASK_DONE,
+    })),
+  ];
+
+  return entries.sort(byStart);
+}
+
+/** Was als Naechstes ansteht - alles, dessen Ende noch nicht vorbei ist. */
+export async function upcomingEntries(limit = 8): Promise<CalendarEntry[]> {
+  const jetzt = new Date();
+  const entries = await calendarEntries(jetzt, new Date(jetzt.getTime() + 365 * 86_400_000));
+  return entries.filter((e) => !e.done).slice(0, limit);
+}
+
 // --- Mails ------------------------------------------------------------------
 
 /**
@@ -255,15 +528,16 @@ async function taskProgress(projectIds: string[]) {
   if (projectIds.length === 0) return map;
 
   const rows = await prisma.task.groupBy({
-    by: ["projectId", "done"],
+    by: ["projectId", "status"],
     where: { projectId: { in: projectIds } },
     _count: { _all: true },
   });
 
   for (const row of rows) {
+    if (!row.projectId) continue; // kann hier nicht vorkommen, beruhigt aber den Typ
     const entry = map.get(row.projectId) ?? { total: 0, done: 0 };
     entry.total += row._count._all;
-    if (row.done) entry.done += row._count._all;
+    if (row.status === TASK_DONE) entry.done += row._count._all;
     map.set(row.projectId, entry);
   }
   return map;
@@ -293,8 +567,8 @@ export async function getProject(id: string) {
 
   const total = project.phases.reduce((n, p) => n + p.tasks.length, 0) + project.tasks.length;
   const done =
-    project.phases.reduce((n, p) => n + p.tasks.filter((t) => t.done).length, 0) +
-    project.tasks.filter((t) => t.done).length;
+    project.phases.reduce((n, p) => n + p.tasks.filter((t) => t.status === TASK_DONE).length, 0) +
+    project.tasks.filter((t) => t.status === TASK_DONE).length;
 
   return { ...project, progress: { total, done } };
 }

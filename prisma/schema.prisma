@@ -22,6 +22,15 @@ enum Priority {
   HOCH
 }
 
+/// Zustand einer Aufgabe. Es gibt kein zusaetzliches "done"-Feld - erledigt ist,
+/// was auf ERLEDIGT steht. Zwei Wahrheiten wuerden auseinanderlaufen.
+enum TaskStatus {
+  OFFEN
+  IN_ARBEIT
+  WARTET
+  ERLEDIGT
+}
+
 enum AttachmentSource {
   UPLOAD
   OUTLOOK
@@ -37,6 +46,9 @@ model Project {
   archived    Boolean       @default(false)
   /// Sortierung innerhalb einer Board-Spalte
   position    Int           @default(0)
+  /// Geplanter Termin von-bis. Entweder beide gesetzt oder keins - siehe src/lib/planning.ts.
+  plannedStart DateTime?
+  plannedEnd   DateTime?
   /// Nur Herkunftsvermerk - Vorlageninhalte werden beim Anlegen kopiert, nicht referenziert.
   templateId  String?
   template    Template?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -54,6 +66,7 @@ model Project {
   @@index([status, archived])
   @@index([customer])
   @@index([updatedAt])
+  @@index([plannedStart])
 }
 
 model Tag {
@@ -80,26 +93,37 @@ model Phase {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title     String
   position  Int     @default(0)
+  /// Geplanter Termin von-bis, z. B. ein Migrationsfenster ueber eine Nacht.
+  plannedStart DateTime?
+  plannedEnd   DateTime?
   tasks     Task[]
 
   @@index([projectId, position])
+  @@index([plannedStart])
 }
 
 model Task {
   id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Optional: eine Aufgabe darf auch ohne Projekt bestehen (Zuruf, Kleinkram).
+  /// Ohne Projekt gibt es auch keine Phase - das haelt die Fachlogik ein.
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   phaseId   String?
   phase     Phase?   @relation(fields: [phaseId], references: [id], onDelete: Cascade)
   title     String
-  done      Boolean  @default(false)
+  status    TaskStatus @default(OFFEN)
   position  Int      @default(0)
   notes     String?
+  /// Geplanter Termin von-bis fuer die einzelne Aufgabe.
+  plannedStart DateTime?
+  plannedEnd   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([projectId, done])
+  @@index([projectId, status])
   @@index([phaseId, position])
+  @@index([plannedStart])
+  @@index([status, position])
 }
 
 model Template {

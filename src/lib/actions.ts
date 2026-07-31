@@ -7,17 +7,22 @@ import {
   addAttachment,
   applyTemplateToProject,
   changeProjectStatus,
+  changeTaskStatus,
   createProject,
+  createTask,
+  setSchedule,
   templateFromProject,
 } from "./service";
 import { resolveStoragePath } from "./storage";
 import { unlink } from "node:fs/promises";
-import { isStatus } from "./status";
+import { isStatus, isTaskStatus, toggledTaskStatus, type TaskStatus } from "./status";
 import {
+  firstIssue,
   MAX_UPLOAD_BYTES,
   noteSchema,
   phaseSchema,
   projectCreateSchema,
+  scheduleSchema,
   tagSchema,
   taskSchema,
   templateSchema,
@@ -30,9 +35,11 @@ import {
 
 export type ActionState = { error?: string; ok?: boolean };
 
-function refreshProject(projectId: string) {
-  revalidatePath(`/projekte/${projectId}`);
+function refreshProject(projectId: string | null) {
+  if (projectId) revalidatePath(`/projekte/${projectId}`);
   revalidatePath("/projekte");
+  revalidatePath("/aufgaben");
+  revalidatePath("/kalender");
   revalidatePath("/");
 }
 
@@ -134,6 +141,30 @@ export async function deleteProjectAction(formData: FormData): Promise<void> {
   redirect("/projekte");
 }
 
+// --- Geplante Termine -------------------------------------------------------
+
+/**
+ * Setzt den Termin eines Projekts, einer Phase oder einer Aufgabe. Beide Felder
+ * leer bedeutet: Termin entfernen.
+ */
+export async function setScheduleAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = scheduleSchema.safeParse({
+    kind: formData.get("kind"),
+    id: formData.get("id"),
+    projectId: formData.get("projectId"),
+    start: formData.get("start") ?? "",
+    end: formData.get("end") ?? "",
+  });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+
+  await setSchedule(parsed.data);
+  refreshProject(parsed.data.projectId);
+  return { ok: true };
+}
+
 // --- Phasen und Aufgaben ----------------------------------------------------
 
 export async function addPhaseAction(formData: FormData): Promise<void> {
@@ -167,41 +198,72 @@ export async function deletePhaseAction(formData: FormData): Promise<void> {
 
 export async function addTaskAction(formData: FormData): Promise<void> {
   const parsed = taskSchema.safeParse({
-    projectId: formData.get("projectId"),
+    projectId: formData.get("projectId") ?? "",
     phaseId: formData.get("phaseId") ?? "",
     title: formData.get("title"),
     notes: formData.get("notes") ?? "",
+    status: formData.get("status") || undefined,
   });
   if (!parsed.success) return;
 
-  const phaseId = parsed.data.phaseId || null;
-  const last = await prisma.task.aggregate({
-    where: { projectId: parsed.data.projectId, phaseId },
-    _max: { position: true },
+  await createTask({
+    title: parsed.data.title,
+    projectId: parsed.data.projectId || null,
+    phaseId: parsed.data.phaseId || null,
+    notes: parsed.data.notes || null,
+    status: parsed.data.status,
   });
-
-  await prisma.task.create({
-    data: {
-      projectId: parsed.data.projectId,
-      phaseId,
-      title: parsed.data.title,
-      notes: parsed.data.notes || null,
-      position: (last._max.position ?? 0) + 1,
-    },
-  });
-  await touchProject(parsed.data.projectId);
-  refreshProject(parsed.data.projectId);
+  refreshProject(parsed.data.projectId || null);
 }
 
+/** Aus dem Aufgabenboard: freie Aufgabe ohne Projekt. */
+export async function addLooseTaskAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = taskSchema.safeParse({
+    projectId: formData.get("projectId") ?? "",
+    phaseId: "",
+    title: formData.get("title"),
+    notes: formData.get("notes") ?? "",
+    status: formData.get("status") || undefined,
+  });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+
+  await createTask({
+    title: parsed.data.title,
+    projectId: parsed.data.projectId || null,
+    notes: parsed.data.notes || null,
+    status: parsed.data.status,
+  });
+  refreshProject(parsed.data.projectId || null);
+  return { ok: true };
+}
+
+/** Kaestchen in der Aufgabenliste: schaltet zwischen offen und erledigt. */
 export async function toggleTaskAction(formData: FormData): Promise<void> {
   const id = String(formData.get("taskId") ?? "");
-  const projectId = String(formData.get("projectId") ?? "");
   if (!id) return;
 
-  const task = await prisma.task.findUnique({ where: { id }, select: { done: true } });
+  const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
   if (!task) return;
-  await prisma.task.update({ where: { id }, data: { done: !task.done } });
-  await touchProject(projectId);
+  const projectId = await changeTaskStatus(id, toggledTaskStatus(task.status as TaskStatus));
+  refreshProject(projectId);
+}
+
+/** Aufruf aus dem Aufgabenboard per fetch - nur der Statuswechsel. */
+export async function moveTaskAction(taskId: string, status: string): Promise<void> {
+  if (!isTaskStatus(status)) return;
+  const projectId = await changeTaskStatus(taskId, status);
+  refreshProject(projectId);
+}
+
+/** Statuswechsel aus einem Auswahlfeld. */
+export async function setTaskStatusAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("taskId") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !isTaskStatus(status)) return;
+  const projectId = await changeTaskStatus(id, status);
   refreshProject(projectId);
 }
 

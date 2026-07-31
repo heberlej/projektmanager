@@ -15,6 +15,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavLink href="/projekte" icon="▦">
             Projekte
           </NavLink>
+          <NavLink href="/aufgaben" icon="☑">
+            Aufgaben
+          </NavLink>
+          <NavLink href="/kalender" icon="▣">
+            Kalender
+          </NavLink>
           <NavLink href="/vorlagen" icon="▤">
             Vorlagen
           </NavLink>
@@ -37,8 +43,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <NavLink href="/projekte" icon="▦">
           Projekte
         </NavLink>
-        <NavLink href="/vorlagen" icon="▤">
-          Vorlagen
+        <NavLink href="/aufgaben" icon="☑">
+          Aufgaben
+        </NavLink>
+        <NavLink href="/kalender" icon="▣">
+          Kalender
         </NavLink>
       </div>
 

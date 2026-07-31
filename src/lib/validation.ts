@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { PRIORITY_ORDER, STATUS_ORDER, TAG_COLORS } from "./status";
+import { PRIORITY_ORDER, STATUS_ORDER, TAG_COLORS, TASK_STATUS_ORDER } from "./status";
+import { parseLocalDateTime, PLANNED_KINDS } from "./planning";
 
 /**
  * Einzige Validierungsquelle - wird sowohl von den Server Actions der UI als
@@ -37,11 +38,15 @@ export const phaseSchema = z.object({
   title: requiredText(160, "Phasenname"),
 });
 
+export const taskStatusSchema = z.enum(TASK_STATUS_ORDER);
+
+/** projectId ist optional: eine Aufgabe darf fuer sich stehen. */
 export const taskSchema = z.object({
-  projectId: idSchema,
+  projectId: idSchema.optional().or(z.literal("")),
   phaseId: idSchema.optional().or(z.literal("")),
   title: requiredText(300, "Aufgabe"),
   notes: trimmed(2000).optional().or(z.literal("")),
+  status: taskStatusSchema.default("OFFEN"),
 });
 
 export const noteSchema = z.object({
@@ -58,6 +63,50 @@ export const templateSchema = z.object({
   name: requiredText(160, "Vorlagenname"),
   description: trimmed(2000).optional().or(z.literal("")),
 });
+
+// --- Geplante Termine -------------------------------------------------------
+
+/**
+ * Ein Termin ist entweder ganz gesetzt oder ganz leer. Ein halber Termin
+ * (nur Beginn) waere im Kalender nicht darstellbar, deshalb wird er abgelehnt
+ * statt stillschweigend ergaenzt.
+ */
+export const scheduleSchema = z
+  .object({
+    kind: z.enum(PLANNED_KINDS),
+    id: idSchema,
+    // Leer bei Aufgaben ohne Projekt - die gibt es seit dem Aufgabenboard.
+    projectId: idSchema.optional().or(z.literal("")),
+    start: trimmed(40).optional(),
+    end: trimmed(40).optional(),
+  })
+  .transform((raw, ctx) => {
+    const start = parseLocalDateTime(raw.start);
+    const end = parseLocalDateTime(raw.end);
+
+    const projectId = raw.projectId || null;
+
+    if (!start && !end) {
+      return { kind: raw.kind, id: raw.id, projectId, start: null, end: null };
+    }
+    if (!start || !end) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Bitte Beginn und Ende angeben – oder beide Felder leer lassen.",
+      });
+      return z.NEVER;
+    }
+    if (end.getTime() < start.getTime()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Das Ende liegt vor dem Beginn.",
+      });
+      return z.NEVER;
+    }
+    return { kind: raw.kind, id: raw.id, projectId, start, end };
+  });
+
+export type ScheduleInput = z.infer<typeof scheduleSchema>;
 
 // --- Add-in -----------------------------------------------------------------
 
@@ -80,6 +129,19 @@ export const linkMailSchema = z.object({
 export const projectFromMailSchema = z.object({
   project: projectCreateSchema,
   mail: mailSchema,
+});
+
+/**
+ * Aufgabe aus dem Add-in. Projekt und Mail sind beide optional: eine Aufgabe
+ * kann fuer sich stehen, und ob die Mail mit angeheftet wird, entscheidet der
+ * Haken im Taskpane.
+ */
+export const addinTaskSchema = z.object({
+  title: requiredText(300, "Aufgabe"),
+  projectId: idSchema.optional().or(z.literal("")),
+  notes: trimmed(2000).optional().or(z.literal("")),
+  status: taskStatusSchema.default("OFFEN"),
+  mail: mailSchema.optional(),
 });
 
 /** Anhaenge kommen aus Office.js als Base64. */

@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { dashboardData } from "@/lib/service";
+import { dashboardData, upcomingEntries } from "@/lib/service";
 import { STALE_AFTER_DAYS, STATUS_BADGE, STATUS_LABEL, STATUS_ORDER, type Status } from "@/lib/status";
 import { Card, CardBody, CardHeader, CardTitle, EmptyState } from "@/components/ui";
 import { StatusBadge, TagChip } from "@/components/bits";
+import { entryHref, formatRange, KIND_CHIP, KIND_LABEL } from "@/lib/planning";
 import { cn, daysSince, relativeDays } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const { byStatus, recent, stale, archivedCount } = await dashboardData();
+  const [{ byStatus, recent, stale, archivedCount }, upcoming] = await Promise.all([
+    dashboardData(),
+    upcomingEntries(6),
+  ]);
   const total = STATUS_ORDER.reduce((n, s) => n + byStatus[s], 0);
 
   return (
@@ -34,6 +38,47 @@ export default async function DashboardPage() {
           <StatusTile key={status} status={status} count={byStatus[status]} />
         ))}
       </section>
+
+      <Card className="mb-4">
+        <CardHeader className="flex items-center justify-between gap-3">
+          <CardTitle>Was als Nächstes ansteht</CardTitle>
+          <Link href="/kalender" className="text-xs font-medium text-blue-700 hover:underline">
+            Kalender
+          </Link>
+        </CardHeader>
+        <CardBody className="space-y-1.5">
+          {upcoming.length === 0 ? (
+            <EmptyState
+              title="Nichts terminiert"
+              hint="Termine setzt du im Projekt – bei den Einstellungen für das ganze Projekt, in der Aufgabenliste für Phase oder Aufgabe."
+            />
+          ) : (
+            upcoming.map((entry) => (
+              <Link
+                key={`${entry.kind}-${entry.id}`}
+                href={entryHref(entry)}
+                className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50"
+              >
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+                    KIND_CHIP[entry.kind],
+                  )}
+                >
+                  {KIND_LABEL[entry.kind]}
+                </span>
+                <span className="text-sm font-medium text-slate-900">{entry.title}</span>
+                <span className="text-xs text-slate-500">
+                  {entry.projectName ?? "ohne Projekt"}
+                </span>
+                <span className="ml-auto shrink-0 text-xs tabular-nums text-slate-600">
+                  {formatRange(entry.start, entry.end)}
+                </span>
+              </Link>
+            ))
+          )}
+        </CardBody>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

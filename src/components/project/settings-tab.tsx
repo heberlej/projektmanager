@@ -7,6 +7,7 @@ import {
 import { Button, Card, CardBody, CardHeader, CardTitle, Field, Input, Select, Textarea } from "../ui";
 import { ConfirmButton } from "../confirm-button";
 import { StatusBadge } from "../bits";
+import { ScheduleForm } from "../schedule-form";
 import { formatDateTime } from "@/lib/utils";
 import { PRIORITY_LABEL, PRIORITY_ORDER, tagChipClass, type Status } from "@/lib/status";
 import type { ProjectDetail } from "./types";
@@ -89,6 +90,25 @@ export function SettingsTab({
 
             <Button type="submit">Speichern</Button>
           </form>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Geplanter Termin</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <ScheduleForm
+            kind="PROJEKT"
+            id={project.id}
+            projectId={project.id}
+            start={project.plannedStart}
+            end={project.plannedEnd}
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Grobe Klammer für das ganze Projekt. Für einzelne Migrationsfenster besser die
+            Phase terminieren, für Einzelschritte die Aufgabe.
+          </p>
         </CardBody>
       </Card>
 

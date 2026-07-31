@@ -44,18 +44,48 @@ Datenablage:
 wsl -l -v
 ```
 
-Steht in der Spalte `VERSION` eine `1`, fehlt die Grundlage für Docker. In einer
-**als Administrator gestarteten** PowerShell:
+Steht in der Spalte `VERSION` eine `1`, fehlt die Grundlage für Docker. Meldet
+`wsl --status` dagegen „WSL2 kann nicht gestartet werden, da die Virtualisierung
+auf diesem Computer nicht aktiviert ist", fehlt die optionale Komponente
+*VM-Plattform*:
 
 ```bash
 wsl.exe --install --no-distribution
 ```
 
-Danach Windows neu starten und die Distro konvertieren:
+Der Befehl meldet Erfolg, wirkt aber **erst nach einem Neustart**. Ob die
+Virtualisierung in der Firmware überhaupt an ist, verrät vorher:
 
 ```bash
+powershell -c "(Get-ComputerInfo -Property HyperVisorPresent).HyperVisorPresent"
+```
+
+`True` heißt: läuft bereits ein Hypervisor, die Firmware ist also in Ordnung und
+es fehlt wirklich nur die Windows-Komponente. Bei `False` führt kein Weg am BIOS
+vorbei.
+
+Danach die Distro installieren und, falls sie auf WSL 1 liegt, konvertieren:
+
+```bash
+wsl.exe --install -d Ubuntu
 wsl.exe --set-version Ubuntu 2
 ```
+
+### Ohne lokale Administratorrechte
+
+Auf verwalteten Rechnern geht mehr als erwartet – der komplette Stack läuft ohne
+Windows-Adminrechte:
+
+- **Docker** wird in der WSL installiert (siehe unten), nicht als Docker
+  Desktop. Innerhalb der Distro ist der Standardbenutzer per `sudo` voll
+  berechtigt.
+- **mkcert** per `winget install --scope user FiloSottile.mkcert`. `mkcert
+  -install` schreibt in den *CurrentUser*-Zertifikatspeicher und braucht keine
+  erhöhten Rechte, nur eine Bestätigung im Dialog.
+- Der **hosts-Eintrag entfällt**. Windows löst `pm.localhost` von sich aus auf –
+  nachprüfbar mit `Resolve-DnsName pm.localhost`.
+
+Einzig `wsl --install` selbst kann je nach Richtlinie Adminrechte verlangen.
 
 ### Node und Docker in der WSL installieren
 
@@ -94,13 +124,24 @@ mkcert -install
 mkcert -cert-file certs/pm.localhost.pem -key-file certs/pm.localhost-key.pem pm.localhost
 ```
 
-**3. Namensauflösung.** Chromium löst `*.localhost` selbst auf, aber verlassen
-sollte man sich nicht darauf. In `C:\Windows\System32\drivers\etc\hosts`
-(Administrator) ergänzen:
+**3. Namensauflösung.** Windows löst `*.localhost` inzwischen selbst auf, ein
+hosts-Eintrag ist normalerweise überflüssig. Prüfen:
+
+```bash
+powershell -c "Resolve-DnsName pm.localhost | Select-Object Name, IPAddress"
+```
+
+Kommt nichts zurück, in `C:\Windows\System32\drivers\etc\hosts` (Administrator)
+ergänzen:
 
 ```
 127.0.0.1 pm.localhost
 ```
+
+Beachten: die Auflösung liefert `::1` **und** `127.0.0.1`, der Proxy ist aber
+bewusst nur auf IPv4 gebunden. Clients fallen auf IPv4 zurück, das funktioniert
+– bleibt das Taskpane in Outlook trotzdem weiß, ist das die erste Stelle zum
+Nachsehen.
 
 ---
 
@@ -125,12 +166,48 @@ idempotent und läuft bei jedem Start mit.
 ### Migrationen
 
 Solange `prisma/migrations/` leer ist, wird das Schema per `prisma db push`
-synchronisiert. Sobald das Datenmodell steht, einmal eine echte Migration
-erzeugen – ab dann läuft alles über `migrate deploy`:
+synchronisiert. Sobald das Datenmodell steht, wird einmal eine echte Migration
+angelegt – ab dann läuft alles über `migrate deploy`.
+
+**Nicht** `docker compose exec app npx prisma migrate dev` benutzen. Das
+scheitert aus drei Gründen:
+
+- `/app/prisma` ist kein Bind-Mount. Die Migration landet im
+  Container-Dateisystem und ist beim nächsten `docker compose down` weg – im
+  Repo kommt sie nie an.
+- Der Container läuft als `node`, `/app/prisma` gehört `root`. Schon das
+  Anlegen von `prisma/migrations/` scheitert mit *Permission denied*.
+- Gegen eine per `db push` angelegte Datenbank erkennt `migrate dev` Drift und
+  bietet einen Reset an. Auf einer Instanz mit echten Daten heißt das
+  Datenverlust.
+
+Stattdessen die Migration aus dem Schema erzeugen und als bereits angewandt
+markieren (Prisma nennt das Baselining). Das ist zerstörungsfrei:
 
 ```bash
-docker compose exec app npx prisma migrate dev --name init
+mkdir -p prisma/migrations/0_init
+docker compose exec -T app npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/0_init/migration.sql
 ```
+
+Danach das Image neu bauen, damit die Migration darin liegt, und den Stand
+eintragen, **bevor** der app-Container mit dem neuen Image startet – sonst
+versucht `migrate deploy`, die Migration auf bereits bestehende Tabellen
+anzuwenden:
+
+```bash
+docker compose build app
+docker compose run --rm -T --entrypoint sh app -c 'npx prisma migrate resolve --applied 0_init'
+docker compose up -d
+```
+
+Kontrolle:
+
+```bash
+docker compose exec app npx prisma migrate status
+```
+
+Erwartet wird „Database schema is up to date!". Ab hier sind spätere
+Schemaänderungen normale Migrationen.
 
 ---
 
@@ -167,6 +244,102 @@ die Originalmail in Outlook.
 
 ---
 
+## MailDrop – Ablagefenster für die Taskleiste
+
+Wenn das Add-in klemmt oder es schneller gehen soll: `tools/maildrop` enthält ein
+kleines Fenster, auf das sich Mails ziehen lassen. Es benutzt dieselben
+Endpunkte unter `/api/addin/`, es gibt also keine zweite Fachlogik.
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\maildrop\Verknuepfung-anlegen.ps1
+```
+
+Danach im Startmenü „Projektmanager MailDrop" suchen, Rechtsklick → *Weitere* →
+*An Taskleiste anheften*. Keine Administratorrechte nötig, alles landet im
+Benutzerprofil. Zum Entfernen dasselbe Skript mit `-Entfernen`.
+
+Ablauf: Mail auf die Fläche ziehen, Projekt aus der Liste wählen (die Suche wird
+aus der Absenderdomain vorbelegt), dann *An Projekt anheften* oder *Neues Projekt
+daraus*. Anhänge wandern mit; per Vorgabe nur PDFs.
+
+Zwei Formate kommen an:
+
+| Herkunft | Format | Anhänge |
+| -------- | ------ | ------- |
+| Klassisches Outlook, direkt aus dem Fenster gezogen | `.msg` über Outlook-COM | ja |
+| `.msg`/`.eml` aus dem Explorer | wie oben bzw. RFC-822 | nur bei `.msg` |
+| Neues Outlook, direkt gezogen | `.eml` | **nein** |
+
+Die Einschränkung bei `.eml` ist bewusst: die MIME-Zerlegung mehrteiliger
+Nachrichten wäre ein eigenes Stück Software. Wer Anhänge braucht, zieht die Mail
+aus dem klassischen Outlook oder legt sie vorher als `.msg` ab.
+
+Ohne `internetMessageId` greift die Idempotenz nicht – das Fenster sagt es
+deutlich, wenn eine Mail keine mitbringt.
+
+Andere Adresse als `https://pm.localhost`: `-BaseUrl` beim Anlegen der
+Verknüpfung setzen oder `PM_BASE_URL` als Umgebungsvariable.
+
+---
+
+## Aufgabenboard
+
+Unter **Aufgaben** liegen alle Aufgaben quer über die Projekte, in vier Spalten:
+*Offen · In Arbeit · Wartet · Erledigt*. Ziehen setzt den Status, wie beim
+Projektboard.
+
+Zwei Dinge unterscheiden Aufgaben von Projekten:
+
+- **„Erledigt" ist ein Status, kein zusätzliches Häkchen.** Es gibt kein
+  `done`-Feld mehr – das Kästchen in der Projektansicht schaltet zwischen
+  `OFFEN` und `ERLEDIGT` hin und her, mehr nicht. Der Fortschritt zählt weiter
+  aus den Aufgaben, jetzt eben über den Status.
+- **Eine Aufgabe darf ohne Projekt bestehen.** `Task.projectId` ist nullable,
+  gedacht für Zurufe und Kleinkram. Ohne Projekt gibt es folgerichtig auch keine
+  Phase; die Fachlogik verwirft eine mitgegebene `phaseId` in dem Fall, statt zu
+  scheitern.
+
+Filtern lässt sich nach Suchbegriff, Projekt und „nur ohne Projekt". Aufgaben
+archivierter Projekte tauchen nicht auf, projektlose immer.
+
+Im Outlook-Add-in gibt es dafür den Reiter **Aufgabe**: Betreff als
+Titelvorschlag, Projekt optional, Status wählbar, und ein Haken *Mail an das
+Projekt anheften* (vorausgewählt). Ohne Projekt kann die Mail nicht angeheftet
+werden – die Antwort sagt das dann auch.
+
+---
+
+## Kalender und Termine
+
+Projekte, Phasen und Aufgaben können einen **geplanten Termin von–bis** haben –
+gedacht für Migrationsfenster, Vor-Ort-Einsätze und Cutover-Nächte. Gesetzt wird
+er dort, wo das Objekt lebt:
+
+| Ebene   | Wo                                           |
+| ------- | -------------------------------------------- |
+| Projekt | Projekt → Einstellungen → *Geplanter Termin*  |
+| Phase   | Projekt → Aufgaben → *Termin setzen* an der Phase |
+| Aufgabe | Projekt → Aufgaben → *Termin setzen* an der Zeile |
+
+Beide Felder leeren und speichern entfernt den Termin wieder. Ein halber Termin
+wird abgelehnt – siehe unten unter den Entscheidungen.
+
+Die Ansicht unter **Kalender** zeigt einen Monat, Montag bis Sonntag. Blöcke über
+mehrere Tage erscheinen in jedem betroffenen Tag, mit Uhrzeit am Start- und
+Endtag. Darunter steht der Monat noch einmal als Liste. Das Dashboard zeigt unter
+*Was als Nächstes ansteht* die nächsten sechs offenen Termine.
+
+Archivierte Projekte tauchen im Kalender nicht auf.
+
+### Zeitzone
+
+Termine werden als **Ortszeit ohne Offset** eingegeben (`datetime-local`).
+Deshalb setzt `docker-compose.yml` `TZ` auf `Europe/Berlin` – ohne das liefe der
+Container auf UTC und aus 22:00 würde beim Anzeigen 20:00. Wer woanders sitzt,
+setzt `TZ` in der `.env`.
+
+---
+
 ## Sicherung
 
 ```bash
@@ -188,6 +361,43 @@ Zurückspielen:
 ```bash
 ./scripts/restore.sh backups/db-20260730-200000.sql.gz backups/uploads-20260730-200000.tar.gz
 ```
+
+---
+
+## Bekannte Fallstricke
+
+**`.env` unter Windows ohne BOM schreiben.** `Out-File -Encoding utf8` schreibt
+in Windows PowerShell 5.1 ein UTF-8-BOM. Compose liest die erste Variable dann
+als `﻿POSTGRES_USER` und der Wert fehlt. Prüfen:
+
+```bash
+powershell -c "'{0:X2}' -f [System.IO.File]::ReadAllBytes('.env')[0]"
+```
+
+`EF` heißt BOM vorhanden. In PowerShell 7 oder mit
+`[System.IO.File]::WriteAllText` schreiben, dann tritt das nicht auf.
+
+**Die Grenzen für Anhänge sind nicht deckungsgleich.** `MAX_UPLOAD_BYTES` in
+`src/lib/validation.ts` sind 32 MB *entschlüsselt*, das Add-in schickt Anhänge
+aber als Base64 (+33 %), und Caddys `request_body max_size` greift auf den
+**rohen** Body. Über das Add-in liegt die tatsächliche Obergrenze damit bei rund
+24 MB, nicht bei 32. Für Auftrags-PDFs irrelevant; wer die vollen 32 MB will,
+setzt Caddy auf `44MB`.
+
+**Der Stack wird aus der WSL bedient.** Liegt das Repo im Windows-Dateisystem
+und der Daemon in der Distro, gibt es unter Windows keinen `docker`-Befehl:
+
+```bash
+wsl -d Ubuntu -- bash -c 'cd /mnt/c/pfad/zum/projektmanager && docker compose ps'
+```
+
+Für alles Mehrzeilige besser ein Skript ablegen und mit `wsl -d Ubuntu -- bash
+/mnt/c/...` starten – das Quoting von PowerShell nach bash zerlegt sonst jedes
+Kommando mit Klammern oder Anführungszeichen.
+
+**Lockdatei und Zeilenenden sind kein Problem.** `npm ci` mit einer auf arm64
+erzeugten `package-lock.json` läuft auf x64 durch, und CRLF fängt
+`.gitattributes` mit `eol=lf` bereits ab.
 
 ---
 
@@ -213,7 +423,9 @@ Compose-Stack starten.
   und Aufgaben als Kopie ins Projekt. Ändert sich die Vorlage später, bleiben
   laufende Projekte unberührt. `Project.templateId` ist nur ein Herkunftsvermerk.
 - **Fortschritt wird gerechnet, nicht gespeichert** – aus erledigten zu gesamten
-  Aufgaben. Ein eigenes Feld könnte auseinanderlaufen.
+  Aufgaben. Ein eigenes Feld könnte auseinanderlaufen. Aus demselben Grund
+  ersetzt `Task.status` das frühere `done`: zwei Wahrheiten über denselben
+  Sachverhalt laufen irgendwann auseinander, also gibt es nur eine.
 - **Archivieren statt Löschen.** Abgeschlossenes verschwindet aus der Übersicht,
   bleibt aber auffindbar. Löschen gibt es, ist aber der Ausnahmefall.
 - **Statuswechsel werden protokolliert** (`StatusEvent`), sichtbar unter
@@ -223,5 +435,13 @@ Compose-Stack starten.
 - **Kunde ist ein Textfeld mit Autocomplete**, keine eigene Entität – aber die
   Vorschlagsliste verhindert „Müller GmbH“ neben „Mueller GmbH“.
 
-Bewusst nicht enthalten: Zeiterfassung, Deadlines/Meilensteine, Kundenverwaltung
-als Entität, Postfach-Sync über Graph, Login.
+- **Termine sind ganz oder gar nicht.** Ein Termin besteht aus Beginn *und*
+  Ende. Nur einen Beginn zu speichern wäre im Kalender nicht darstellbar, also
+  lehnt die Validierung das ab, statt stillschweigend etwas zu ergänzen.
+- **Termine liegen auf drei Ebenen und erben nichts.** Projekt, Phase und
+  Aufgabe haben je einen eigenen Termin. Es gibt bewusst keine Ableitung „Phase
+  = früheste Aufgabe": zwei Wahrheiten, die auseinanderlaufen können, sind
+  schlimmer als eine, die man selbst pflegt.
+
+Bewusst nicht enthalten: Zeiterfassung (also erfasste Stunden und Abrechnung),
+Kundenverwaltung als Entität, Postfach-Sync über Graph, Login.

@@ -12,7 +12,14 @@ import {
   type MailData,
 } from "./office";
 import { Button, Input, Label, Select, Textarea } from "../ui";
-import { STATUS_BADGE, STATUS_LABEL, tagChipClass, type Status } from "@/lib/status";
+import {
+  STATUS_BADGE,
+  STATUS_LABEL,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_ORDER,
+  tagChipClass,
+  type Status,
+} from "@/lib/status";
 import { customerFromEmail, formatBytes } from "@/lib/utils";
 
 type ProjectHit = {
@@ -30,7 +37,13 @@ type Meta = {
   customers: string[];
 };
 
-type Mode = "pin" | "new";
+type Mode = "pin" | "new" | "task";
+
+const MODE_LABEL: Record<Mode, string> = {
+  pin: "Anheften",
+  new: "Neues Projekt",
+  task: "Aufgabe",
+};
 
 export function Taskpane() {
   const [office, setOffice] = useState<any>(null);
@@ -201,6 +214,43 @@ export function Taskpane() {
     }
   }
 
+  /**
+   * Aufgabe aus der Mail. Projekt ist optional; ob die Mail mit angeheftet wird,
+   * entscheidet der Haken. Ohne Projekt gibt es nichts zum Anheften - das sagt
+   * die Antwort dann auch.
+   */
+  async function createTaskFromMail(formData: FormData) {
+    setBusy(true);
+    setResult(null);
+    try {
+      const projectId = String(formData.get("projectId") ?? "");
+      const mitMail = formData.get("linkMail") === "on";
+
+      const response = await fetch("/api/addin/task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: String(formData.get("title") ?? "").trim(),
+          projectId,
+          notes: String(formData.get("notes") ?? ""),
+          status: String(formData.get("status") ?? "OFFEN"),
+          mail: mitMail && mail ? toPayload(mail) : undefined,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Anlegen fehlgeschlagen");
+
+      let text = `Aufgabe „${body.title}“ angelegt`;
+      if (body.mailLinked) text += " und Mail angeheftet";
+      else if (body.mailSkipped) text += " – ohne Projekt konnte die Mail nicht angeheftet werden";
+      setResult({ ok: true, projectId: body.projectId ?? undefined, text: text + "." });
+    } catch (error) {
+      setResult({ ok: false, text: (error as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (fatal) {
     return (
       <Notice tone="error">
@@ -257,7 +307,7 @@ export function Taskpane() {
       ) : null}
 
       <div className="flex overflow-hidden rounded-md ring-1 ring-slate-300">
-        {(["pin", "new"] as const).map((value) => (
+        {(["pin", "new", "task"] as const).map((value) => (
           <button
             key={value}
             type="button"
@@ -269,7 +319,7 @@ export function Taskpane() {
               mode === value ? "bg-slate-900 text-white" : "bg-white text-slate-700"
             }`}
           >
-            {value === "pin" ? "An Projekt anheften" : "Neues Projekt"}
+            {MODE_LABEL[value]}
           </button>
         ))}
       </div>
@@ -327,6 +377,65 @@ export function Taskpane() {
             )}
           </div>
         </section>
+      ) : mode === "task" ? (
+        <form
+          className="space-y-2.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            createTaskFromMail(new FormData(event.currentTarget));
+          }}
+        >
+          <div>
+            <Label htmlFor="task-title">Aufgabe</Label>
+            <Input
+              id="task-title"
+              name="title"
+              required
+              maxLength={300}
+              defaultValue={mail?.subject ?? ""}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="task-project">Projekt</Label>
+            <Select id="task-project" name="projectId" defaultValue="">
+              <option value="">ohne Projekt</option>
+              {hits.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name} – {project.customer}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Die Liste folgt der Suche im Reiter „Anheften“.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="task-status">Status</Label>
+            <Select id="task-status" name="status" defaultValue="OFFEN">
+              {TASK_STATUS_ORDER.map((value) => (
+                <option key={value} value={value}>
+                  {TASK_STATUS_LABEL[value]}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="task-notes">Notiz</Label>
+            <Textarea id="task-notes" name="notes" rows={3} maxLength={2000} />
+          </div>
+
+          <label className="flex items-center gap-2 text-xs text-slate-700">
+            <input type="checkbox" name="linkMail" defaultChecked className="h-3.5 w-3.5 accent-blue-600" />
+            Mail an das Projekt anheften
+          </label>
+
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy ? "…" : "Aufgabe anlegen"}
+          </Button>
+        </form>
       ) : (
         <form
           className="space-y-2.5"

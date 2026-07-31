@@ -4,12 +4,70 @@ import {
   applyTemplateAction,
   deletePhaseAction,
   deleteTaskAction,
+  setTaskStatusAction,
   toggleTaskAction,
 } from "@/lib/actions";
+import {
+  TASK_DONE,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_ORDER,
+  type TaskStatus,
+} from "@/lib/status";
 import { Button, Card, CardBody, CardHeader, CardTitle, EmptyState, Input, Select } from "../ui";
 import { ConfirmButton } from "../confirm-button";
 import { ProgressBar } from "../bits";
+import { ScheduleForm } from "../schedule-form";
+import { formatRange, KIND_CHIP, type PlannedKind } from "@/lib/planning";
 import type { ProjectDetail } from "./types";
+
+type Termin = { plannedStart: Date | null; plannedEnd: Date | null };
+
+/** Zeigt den Termin an, wenn einer gesetzt ist - sonst nichts. */
+function TerminChip({ start, end, kind }: { start: Date | null; end: Date | null; kind: PlannedKind }) {
+  if (!start || !end) return null;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${KIND_CHIP[kind]}`}
+    >
+      {formatRange(start, end)}
+    </span>
+  );
+}
+
+/** Zusammengeklappter Termin-Editor - die Aufgabenliste soll ruhig bleiben. */
+function TerminEditor({
+  kind,
+  id,
+  projectId,
+  termin,
+  variant = "block",
+}: {
+  kind: PlannedKind;
+  id: string;
+  projectId: string;
+  termin: Termin;
+  variant?: "block" | "inline";
+}) {
+  const gesetzt = Boolean(termin.plannedStart && termin.plannedEnd);
+  return (
+    <details className="group">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+        <span aria-hidden>🕒</span>
+        {gesetzt ? "Termin ändern" : "Termin setzen"}
+      </summary>
+      <div className="mt-2 rounded-md bg-slate-50 p-2">
+        <ScheduleForm
+          kind={kind}
+          id={id}
+          projectId={projectId}
+          start={termin.plannedStart}
+          end={termin.plannedEnd}
+          variant={variant}
+        />
+      </div>
+    </details>
+  );
+}
 
 export function TasksTab({
   project,
@@ -68,11 +126,12 @@ export function TasksTab({
       ) : null}
 
       {project.phases.map((phase) => {
-        const done = phase.tasks.filter((t) => t.done).length;
+        const done = phase.tasks.filter((t) => t.status === TASK_DONE).length;
         return (
           <Card key={phase.id}>
-            <CardHeader className="flex items-center gap-3">
+            <CardHeader className="flex flex-wrap items-center gap-3">
               <CardTitle className="flex-1">{phase.title}</CardTitle>
+              <TerminChip kind="PHASE" start={phase.plannedStart} end={phase.plannedEnd} />
               <span className="text-xs tabular-nums text-slate-500">
                 {done}/{phase.tasks.length}
               </span>
@@ -85,6 +144,9 @@ export function TasksTab({
               </form>
             </CardHeader>
             <CardBody className="space-y-1">
+              <div className="pb-1">
+                <TerminEditor kind="PHASE" id={phase.id} projectId={project.id} termin={phase} />
+              </div>
               {phase.tasks.map((task) => (
                 <TaskRow key={task.id} projectId={project.id} task={task} />
               ))}
@@ -114,8 +176,9 @@ function TaskRow({
   task,
 }: {
   projectId: string;
-  task: { id: string; title: string; done: boolean; notes: string | null };
+  task: { id: string; title: string; status: TaskStatus; notes: string | null } & Termin;
 }) {
+  const erledigt = task.status === TASK_DONE;
   return (
     <div className="group flex items-start gap-2 rounded-md px-1 py-1 hover:bg-slate-50">
       <form action={toggleTaskAction} className="pt-0.5">
@@ -123,22 +186,54 @@ function TaskRow({
         <input type="hidden" name="projectId" value={projectId} />
         <button
           type="submit"
-          aria-label={task.done ? "Als offen markieren" : "Als erledigt markieren"}
+          aria-label={erledigt ? "Als offen markieren" : "Als erledigt markieren"}
           className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${
-            task.done
+            erledigt
               ? "border-emerald-500 bg-emerald-500 text-white"
               : "border-slate-300 bg-white hover:border-slate-400"
           }`}
         >
-          {task.done ? "✓" : ""}
+          {erledigt ? "✓" : ""}
         </button>
       </form>
 
       <div className="min-w-0 flex-1">
-        <p className={`text-sm ${task.done ? "text-slate-400 line-through" : "text-slate-800"}`}>
+        <p className={`text-sm ${erledigt ? "text-slate-400 line-through" : "text-slate-800"}`}>
           {task.title}
         </p>
         {task.notes ? <p className="mt-0.5 text-xs text-slate-500">{task.notes}</p> : null}
+        {task.plannedStart && task.plannedEnd ? (
+          <p className="mt-1">
+            <TerminChip kind="AUFGABE" start={task.plannedStart} end={task.plannedEnd} />
+          </p>
+        ) : null}
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <form action={setTaskStatusAction} className="flex items-center gap-1">
+            <input type="hidden" name="taskId" value={task.id} />
+            <Select
+              name="status"
+              defaultValue={task.status}
+              className="h-7 w-auto py-0 text-xs"
+              aria-label="Status der Aufgabe"
+            >
+              {TASK_STATUS_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {TASK_STATUS_LABEL[s]}
+                </option>
+              ))}
+            </Select>
+            <Button type="submit" variant="ghost" size="sm" className="h-7">
+              setzen
+            </Button>
+          </form>
+          <TerminEditor
+            kind="AUFGABE"
+            id={task.id}
+            projectId={projectId}
+            termin={task}
+            variant="inline"
+          />
+        </div>
       </div>
 
       <form action={deleteTaskAction} className="opacity-0 transition-opacity group-hover:opacity-100">
