@@ -221,8 +221,10 @@ export async function addLooseTaskAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  // Kein projectId: die Aufgabenliste ist von den Projekten getrennt, was hier
+  // entsteht, steht fuer sich. Projektaufgaben legt man im Projekt an.
   const parsed = taskSchema.safeParse({
-    projectId: formData.get("projectId") ?? "",
+    projectId: "",
     phaseId: "",
     title: formData.get("title"),
     notes: formData.get("notes") ?? "",
@@ -232,11 +234,11 @@ export async function addLooseTaskAction(
 
   await createTask({
     title: parsed.data.title,
-    projectId: parsed.data.projectId || null,
+    projectId: null,
     notes: parsed.data.notes || null,
     status: parsed.data.status,
   });
-  refreshProject(parsed.data.projectId || null);
+  refreshProject(null);
   return { ok: true };
 }
 

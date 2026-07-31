@@ -407,7 +407,8 @@ export function Taskpane() {
               ))}
             </Select>
             <p className="mt-1 text-[11px] text-slate-500">
-              Die Liste folgt der Suche im Reiter „Anheften“.
+              Die Liste folgt der Suche im Reiter „Anheften“. Mit Projekt landet die Aufgabe in
+              dessen Aufgabenliste, ohne Projekt in der eigenständigen Liste unter „Aufgaben“.
             </p>
           </div>
 

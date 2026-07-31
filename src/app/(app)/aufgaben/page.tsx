@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listBoardTasks, listProjects, taskCountsByStatus } from "@/lib/service";
+import { listBoardTasks, taskCountsByStatus } from "@/lib/service";
 import { TASK_STATUS_LABEL, TASK_STATUS_ORDER, type TaskStatus } from "@/lib/status";
 import { TaskBoard, type BoardTaskData } from "@/components/task-board";
 import { TaskQuickAdd } from "@/components/task-quick-add";
@@ -16,16 +16,9 @@ function one(value: string | string[] | undefined): string {
 export default async function TasksPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const q = one(params.q).trim();
-  const projekt = one(params.projekt);
-  const ohneProjekt = one(params.frei) === "1";
 
-  const [tasks, projects, counts] = await Promise.all([
-    listBoardTasks({
-      q: q || undefined,
-      projectId: projekt || undefined,
-      ohneProjekt: ohneProjekt || undefined,
-    }),
-    listProjects(),
+  const [tasks, counts] = await Promise.all([
+    listBoardTasks({ q: q || undefined }),
     taskCountsByStatus(),
   ]);
 
@@ -36,10 +29,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
     notes: t.notes,
     plannedStart: t.plannedStart,
     plannedEnd: t.plannedEnd,
-    projectId: t.projectId,
-    projectName: t.projectName,
-    customer: t.customer,
-    phaseTitle: t.phaseTitle,
   }));
 
   const offen = TASK_STATUS_ORDER.filter((s) => s !== "ERLEDIGT").reduce(
@@ -53,13 +42,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
         <h1 className="text-xl font-semibold text-slate-900">Aufgaben</h1>
         <p className="mt-0.5 text-sm text-slate-500">
           {offen} offen · {counts.ERLEDIGT} erledigt
-          {q || projekt || ohneProjekt ? ` · ${karten.length} gefiltert` : ""}
+          {q ? ` · ${karten.length} gefiltert` : ""}
         </p>
       </header>
 
       <Card className="mb-4">
         <CardBody className="py-3">
-          <TaskQuickAdd projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
+          <TaskQuickAdd />
         </CardBody>
       </Card>
 
@@ -71,28 +60,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
               <input
                 name="q"
                 defaultValue={q}
-                placeholder="Titel, Notiz, Projekt, Kunde"
+                placeholder="Titel oder Notiz"
                 className="h-9 w-56 rounded-md border border-slate-300 px-3 text-sm"
               />
-            </label>
-            <label>
-              <span className="mb-1 block text-xs font-medium text-slate-600">Projekt</span>
-              <select
-                name="projekt"
-                defaultValue={projekt}
-                className="h-9 rounded-md border border-slate-300 px-2 text-sm"
-              >
-                <option value="">alle</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex h-9 items-center gap-1.5 text-sm text-slate-700">
-              <input type="checkbox" name="frei" value="1" defaultChecked={ohneProjekt} />
-              nur ohne Projekt
             </label>
             <button
               type="submit"
@@ -100,7 +70,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
             >
               Filtern
             </button>
-            {q || projekt || ohneProjekt ? (
+            {q ? (
               <Link
                 href="/aufgaben"
                 className="flex h-9 items-center px-2 text-sm text-slate-600 hover:underline"
@@ -116,9 +86,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
         <EmptyState
           title="Keine Aufgaben"
           hint={
-            q || projekt || ohneProjekt
-              ? "Filter zurücksetzen oder Suchbegriff ändern."
-              : "Lege oben eine an – ein Projekt ist dafür nicht nötig."
+            q
+              ? "Suchbegriff ändern oder zurücksetzen."
+              : "Lege oben eine an. Aufgaben, die zu einem Projekt gehören, stehen im Projekt."
           }
         />
       ) : (
@@ -127,7 +97,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
 
       <p className="mt-3 text-xs text-slate-500">
         Spalten: {TASK_STATUS_ORDER.map((s) => TASK_STATUS_LABEL[s]).join(" · ")}. Ziehen setzt den
-        Status; „Erledigt" ist der Status, kein zusätzliches Häkchen.
+        Status; „Erledigt" ist der Status, kein zusätzliches Häkchen. Diese Liste steht für sich –
+        Aufgaben aus Projekten erscheinen hier nicht, sie stehen im jeweiligen Projekt.
       </p>
     </div>
   );

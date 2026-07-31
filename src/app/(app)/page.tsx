@@ -88,13 +88,13 @@ export default async function DashboardPage() {
           {offeneAufgaben.length === 0 ? (
             <EmptyState
               title="Nichts offen"
-              hint="Neue Aufgaben legst du auf dem Board an – ein Projekt ist dafür nicht nötig."
+              hint="Neue Aufgaben legst du auf dem Board an. Was zu einem Projekt gehört, steht im Projekt."
             />
           ) : (
             offeneAufgaben.map((task) => (
               <Link
                 key={task.id}
-                href={task.projectId ? `/projekte/${task.projectId}` : "/aufgaben"}
+                href="/aufgaben"
                 className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50"
               >
                 <span
@@ -106,10 +106,6 @@ export default async function DashboardPage() {
                   {TASK_STATUS_LABEL[task.status]}
                 </span>
                 <span className="text-sm font-medium text-slate-900">{task.title}</span>
-                <span className="text-xs text-slate-500">
-                  {task.projectName ?? "ohne Projekt"}
-                  {task.phaseTitle ? ` · ${task.phaseTitle}` : ""}
-                </span>
                 {task.plannedStart && task.plannedEnd ? (
                   <span className="ml-auto shrink-0 text-xs tabular-nums text-slate-600">
                     {formatRange(task.plannedStart, task.plannedEnd)}

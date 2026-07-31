@@ -294,9 +294,18 @@ Verknüpfung setzen oder `PM_BASE_URL` als Umgebungsvariable.
 
 ## Aufgabenboard
 
-Unter **Aufgaben** liegen alle Aufgaben quer über die Projekte, in vier Spalten:
-*Offen · In Arbeit · Wartet · Erledigt*. Ziehen setzt den Status, wie beim
-Projektboard.
+Unter **Aufgaben** liegt eine **eigenständige Liste**, in vier Spalten: *Offen ·
+In Arbeit · Wartet · Erledigt*. Ziehen setzt den Status, wie beim Projektboard.
+
+Der Punkt dieser Liste ist die Trennung: **sie hat mit den Projekten nichts zu
+tun.** Was an einem Projekt hängt, lebt in dessen Aufgabenliste und taucht hier
+nicht auf – auch nicht im Dashboard-Block *Offene Aufgaben*, der dieselbe Quelle
+liest. Gedacht ist die Liste für Zurufe, Kleinkram und alles, was keinen
+Projektrahmen hat.
+
+Der Filter dafür steht in der Fachlogik (`listBoardTasks` in `service.ts`), nicht
+in der Ansicht. Eine neue Seite kann die Trennung damit nicht versehentlich
+aufweichen.
 
 Zwei Dinge unterscheiden Aufgaben von Projekten:
 
@@ -304,18 +313,20 @@ Zwei Dinge unterscheiden Aufgaben von Projekten:
   `done`-Feld mehr – das Kästchen in der Projektansicht schaltet zwischen
   `OFFEN` und `ERLEDIGT` hin und her, mehr nicht. Der Fortschritt zählt weiter
   aus den Aufgaben, jetzt eben über den Status.
-- **Eine Aufgabe darf ohne Projekt bestehen.** `Task.projectId` ist nullable,
-  gedacht für Zurufe und Kleinkram. Ohne Projekt gibt es folgerichtig auch keine
-  Phase; die Fachlogik verwirft eine mitgegebene `phaseId` in dem Fall, statt zu
-  scheitern.
+- **Eine Aufgabe darf ohne Projekt bestehen.** `Task.projectId` ist nullable –
+  die Voraussetzung für die getrennte Liste. Ohne Projekt gibt es folgerichtig
+  auch keine Phase; die Fachlogik verwirft eine mitgegebene `phaseId` in dem
+  Fall, statt zu scheitern.
 
-Filtern lässt sich nach Suchbegriff, Projekt und „nur ohne Projekt". Aufgaben
-archivierter Projekte tauchen nicht auf, projektlose immer.
+Gefiltert wird nur nach Suchbegriff, über Titel und Notiz. Ein Projektfilter
+wäre hier gegenstandslos.
 
 Im Outlook-Add-in gibt es dafür den Reiter **Aufgabe**: Betreff als
 Titelvorschlag, Projekt optional, Status wählbar, und ein Haken *Mail an das
 Projekt anheften* (vorausgewählt). Ohne Projekt kann die Mail nicht angeheftet
-werden – die Antwort sagt das dann auch.
+werden – die Antwort sagt das dann auch. Die Projektauswahl entscheidet, wo die
+Aufgabe landet: mit Projekt in dessen Liste, ohne Projekt in der eigenständigen
+unter *Aufgaben*.
 
 ---
 

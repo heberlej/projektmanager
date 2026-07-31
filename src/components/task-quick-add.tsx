@@ -7,10 +7,10 @@ import { Button, Input, Select } from "./ui";
 import { TASK_STATUS_LABEL, TASK_STATUS_ORDER } from "@/lib/status";
 
 /**
- * Aufgabe direkt vom Board aus anlegen. Das Projekt ist optional - genau dafuer
- * ist Task.projectId nullable.
+ * Aufgabe direkt vom Board aus anlegen. Immer ohne Projekt: die Aufgabenliste
+ * ist von den Projekten getrennt, Projektaufgaben entstehen im Projekt.
  */
-export function TaskQuickAdd({ projects }: { projects: { id: string; name: string }[] }) {
+export function TaskQuickAdd() {
   const [state, formAction] = useActionState<ActionState, FormData>(addLooseTaskAction, {});
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -26,18 +26,6 @@ export function TaskQuickAdd({ projects }: { projects: { id: string; name: strin
       <label className="min-w-56 flex-1">
         <span className="mb-1 block text-xs font-medium text-slate-600">Neue Aufgabe</span>
         <Input name="title" required maxLength={300} placeholder="Was ist zu tun?" />
-      </label>
-
-      <label>
-        <span className="mb-1 block text-xs font-medium text-slate-600">Projekt</span>
-        <Select name="projectId" defaultValue="" className="w-auto">
-          <option value="">ohne Projekt</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
       </label>
 
       <label>

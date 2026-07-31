@@ -170,37 +170,28 @@ export type BoardTask = {
   notes: string | null;
   plannedStart: Date | null;
   plannedEnd: Date | null;
-  projectId: string | null;
-  projectName: string | null;
-  customer: string | null;
-  phaseTitle: string | null;
 };
 
 export type TaskFilter = {
   q?: string;
-  projectId?: string;
-  /** Nur Aufgaben, die an keinem Projekt haengen. */
-  ohneProjekt?: boolean;
 };
 
-/** Aufgaben quer ueber alle Projekte, fuer das Board unter /aufgaben. */
+/**
+ * Die freien Aufgaben fuer das Board unter /aufgaben.
+ *
+ * Freie Aufgaben und Projektaufgaben sind zwei getrennte Welten: was an einem
+ * Projekt haengt, lebt in dessen Aufgabenliste und taucht hier nicht auf. Der
+ * Filter ist deshalb `projectId: null` und nicht verhandelbar - er steht hier
+ * in der Fachlogik, damit ihn keine Ansicht versehentlich aufweichen kann.
+ */
 export async function listBoardTasks(filter: TaskFilter = {}): Promise<BoardTask[]> {
   const where: Prisma.TaskWhereInput = {
-    // Aufgaben archivierter Projekte gehoeren nicht aufs Board; projektlose schon.
-    OR: [{ project: { archived: false } }, { projectId: null }],
-    ...(filter.projectId ? { projectId: filter.projectId } : {}),
-    ...(filter.ohneProjekt ? { projectId: null } : {}),
+    projectId: null,
     ...(filter.q
       ? {
-          AND: [
-            {
-              OR: [
-                { title: { contains: filter.q, mode: "insensitive" } },
-                { notes: { contains: filter.q, mode: "insensitive" } },
-                { project: { name: { contains: filter.q, mode: "insensitive" } } },
-                { project: { customer: { contains: filter.q, mode: "insensitive" } } },
-              ],
-            },
+          OR: [
+            { title: { contains: filter.q, mode: "insensitive" } },
+            { notes: { contains: filter.q, mode: "insensitive" } },
           ],
         }
       : {}),
@@ -222,8 +213,6 @@ const boardTaskSelect = {
   notes: true,
   plannedStart: true,
   plannedEnd: true,
-  project: { select: { id: true, name: true, customer: true } },
-  phase: { select: { title: true } },
 } satisfies Prisma.TaskSelect;
 
 type BoardTaskRow = Prisma.TaskGetPayload<{ select: typeof boardTaskSelect }>;
@@ -236,22 +225,20 @@ function toBoardTask(t: BoardTaskRow): BoardTask {
     notes: t.notes,
     plannedStart: t.plannedStart,
     plannedEnd: t.plannedEnd,
-    projectId: t.project?.id ?? null,
-    projectName: t.project?.name ?? null,
-    customer: t.project?.customer ?? null,
-    phaseTitle: t.phase?.title ?? null,
   };
 }
 
 /**
- * Offene Aufgaben fuers Dashboard. Terminiertes zuerst, danach das zuletzt
- * Angefasste - was ohne Termin herumliegt, soll nicht die Liste verstopfen.
+ * Offene freie Aufgaben fuers Dashboard. Terminiertes zuerst, danach das
+ * zuletzt Angefasste - was ohne Termin herumliegt, soll nicht die Liste
+ * verstopfen. Projektaufgaben bleiben aussen vor, genau wie unter /aufgaben;
+ * ihr Stand steht im Fortschritt der Projektkacheln.
  */
 export async function openTasksForDashboard(limit = 8): Promise<BoardTask[]> {
   const rows = await prisma.task.findMany({
     where: {
       status: { not: TASK_DONE },
-      OR: [{ project: { archived: false } }, { projectId: null }],
+      projectId: null,
     },
     orderBy: [{ plannedStart: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
     take: limit,
@@ -324,11 +311,11 @@ export async function createTask(data: TaskCreateData) {
   });
 }
 
-/** Zaehlt die Spalten fuer die Kopfzeile des Boards. */
+/** Zaehlt die Spalten fuer die Kopfzeile des Boards - nur freie Aufgaben. */
 export async function taskCountsByStatus(): Promise<Record<TaskStatus, number>> {
   const rows = await prisma.task.groupBy({
     by: ["status"],
-    where: { OR: [{ project: { archived: false } }, { projectId: null }] },
+    where: { projectId: null },
     _count: { _all: true },
   });
   const counts = Object.fromEntries(TASK_STATUS_ORDER.map((s) => [s, 0])) as Record<TaskStatus, number>;

@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { deleteTaskAction, moveTaskAction } from "@/lib/actions";
 import { ScheduleForm } from "./schedule-form";
 import {
@@ -21,15 +20,13 @@ export type BoardTaskData = {
   notes: string | null;
   plannedStart: Date | string | null;
   plannedEnd: Date | string | null;
-  projectId: string | null;
-  projectName: string | null;
-  customer: string | null;
-  phaseTitle: string | null;
 };
 
 /**
- * Aufgabenboard quer ueber alle Projekte. Gleiches Muster wie das Projektboard:
- * natives HTML5-Drag-and-Drop, optimistische Anzeige, Wechsel serverseitig.
+ * Board der freien Aufgaben. Gleiches Muster wie das Projektboard: natives
+ * HTML5-Drag-and-Drop, optimistische Anzeige, Wechsel serverseitig.
+ *
+ * Projektaufgaben kommen hier nicht vor - die stehen in ihrem Projekt.
  */
 export function TaskBoard({ tasks }: { tasks: BoardTaskData[] }) {
   const router = useRouter();
@@ -125,22 +122,6 @@ function TaskCard({ task }: { task: BoardTaskData }) {
         <p className="mt-1 line-clamp-2 text-xs text-slate-500">{task.notes}</p>
       ) : null}
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-        {task.projectId ? (
-          <Link
-            href={`/projekte/${task.projectId}`}
-            className="truncate text-blue-700 hover:underline"
-          >
-            {task.projectName}
-          </Link>
-        ) : (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 ring-1 ring-slate-300 ring-inset">
-            ohne Projekt
-          </span>
-        )}
-        {task.phaseTitle ? <span className="text-slate-400">· {task.phaseTitle}</span> : null}
-      </div>
-
       {task.plannedStart && task.plannedEnd ? (
         <p className="mt-1.5 text-xs tabular-nums text-slate-600">
           {formatRange(task.plannedStart, task.plannedEnd)}
@@ -148,7 +129,7 @@ function TaskCard({ task }: { task: BoardTaskData }) {
       ) : null}
 
       {/* draggable=false, sonst startet jeder Klick ins Eingabefeld einen Zug.
-          Ohne diesen Block kaeme eine Aufgabe ohne Projekt nie an einen Termin. */}
+          Ohne diesen Block kaeme eine freie Aufgabe nie an einen Termin. */}
       <div
         draggable={false}
         onDragStart={(event) => event.stopPropagation()}
@@ -164,14 +145,14 @@ function TaskCard({ task }: { task: BoardTaskData }) {
             <ScheduleForm
               kind="AUFGABE"
               id={task.id}
-              projectId={task.projectId}
+              projectId={null}
               start={task.plannedStart}
               end={task.plannedEnd}
               variant="inline"
             />
             <form action={deleteTaskAction} className="mt-2">
               <input type="hidden" name="taskId" value={task.id} />
-              <input type="hidden" name="projectId" value={task.projectId ?? ""} />
+              <input type="hidden" name="projectId" value="" />
               <button
                 type="submit"
                 className="text-xs text-rose-700 hover:underline"
