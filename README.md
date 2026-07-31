@@ -31,6 +31,16 @@ Datenablage:
 
 ---
 
+## Installation
+
+Ein durchgehender Weg von der frischen Windows-Maschine bis zum laufenden Stack
+steht in **[INSTALL.md](INSTALL.md)** – inklusive der Stolperstellen (VM-Plattform
+und Neustart, Docker in der WSL statt Docker Desktop, BOM in der `.env`).
+
+Die folgenden Abschnitte beschreiben die Bestandteile im Einzelnen.
+
+---
+
 ## Voraussetzungen
 
 - **WSL 2** (nicht WSL 1) mit Ubuntu, oder macOS
