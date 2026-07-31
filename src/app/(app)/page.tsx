@@ -1,6 +1,21 @@
 import Link from "next/link";
-import { dashboardData, upcomingEntries } from "@/lib/service";
-import { STALE_AFTER_DAYS, STATUS_BADGE, STATUS_LABEL, STATUS_ORDER, type Status } from "@/lib/status";
+import {
+  dashboardData,
+  openTasksForDashboard,
+  taskCountsByStatus,
+  upcomingEntries,
+} from "@/lib/service";
+import {
+  STALE_AFTER_DAYS,
+  STATUS_BADGE,
+  STATUS_LABEL,
+  STATUS_ORDER,
+  TASK_STATUS_BADGE,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_ORDER,
+  type Status,
+  type TaskStatus,
+} from "@/lib/status";
 import { Card, CardBody, CardHeader, CardTitle, EmptyState } from "@/components/ui";
 import { StatusBadge, TagChip } from "@/components/bits";
 import { entryHref, formatRange, KIND_CHIP, KIND_LABEL } from "@/lib/planning";
@@ -9,11 +24,18 @@ import { cn, daysSince, relativeDays } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ byStatus, recent, stale, archivedCount }, upcoming] = await Promise.all([
-    dashboardData(),
-    upcomingEntries(6),
-  ]);
+  const [{ byStatus, recent, stale, archivedCount }, upcoming, offeneAufgaben, taskCounts] =
+    await Promise.all([
+      dashboardData(),
+      upcomingEntries(6),
+      openTasksForDashboard(8),
+      taskCountsByStatus(),
+    ]);
   const total = STATUS_ORDER.reduce((n, s) => n + byStatus[s], 0);
+  const offenGesamt = TASK_STATUS_ORDER.filter((s) => s !== "ERLEDIGT").reduce(
+    (n, s) => n + taskCounts[s as TaskStatus],
+    0,
+  );
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -38,6 +60,66 @@ export default async function DashboardPage() {
           <StatusTile key={status} status={status} count={byStatus[status]} />
         ))}
       </section>
+
+      <Card className="mb-4">
+        <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle>
+            Offene Aufgaben
+            <span className="ml-2 font-normal text-slate-500">{offenGesamt}</span>
+          </CardTitle>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {TASK_STATUS_ORDER.filter((s) => s !== "ERLEDIGT").map((s) => (
+              <span
+                key={s}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+                  TASK_STATUS_BADGE[s],
+                )}
+              >
+                {TASK_STATUS_LABEL[s]} {taskCounts[s as TaskStatus]}
+              </span>
+            ))}
+            <Link href="/aufgaben" className="ml-1 text-xs font-medium text-blue-700 hover:underline">
+              Board
+            </Link>
+          </div>
+        </CardHeader>
+        <CardBody className="space-y-1.5">
+          {offeneAufgaben.length === 0 ? (
+            <EmptyState
+              title="Nichts offen"
+              hint="Neue Aufgaben legst du auf dem Board an – ein Projekt ist dafür nicht nötig."
+            />
+          ) : (
+            offeneAufgaben.map((task) => (
+              <Link
+                key={task.id}
+                href={task.projectId ? `/projekte/${task.projectId}` : "/aufgaben"}
+                className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50"
+              >
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+                    TASK_STATUS_BADGE[task.status],
+                  )}
+                >
+                  {TASK_STATUS_LABEL[task.status]}
+                </span>
+                <span className="text-sm font-medium text-slate-900">{task.title}</span>
+                <span className="text-xs text-slate-500">
+                  {task.projectName ?? "ohne Projekt"}
+                  {task.phaseTitle ? ` · ${task.phaseTitle}` : ""}
+                </span>
+                {task.plannedStart && task.plannedEnd ? (
+                  <span className="ml-auto shrink-0 text-xs tabular-nums text-slate-600">
+                    {formatRange(task.plannedStart, task.plannedEnd)}
+                  </span>
+                ) : null}
+              </Link>
+            ))
+          )}
+        </CardBody>
+      </Card>
 
       <Card className="mb-4">
         <CardHeader className="flex items-center justify-between gap-3">

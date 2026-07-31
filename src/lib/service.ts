@@ -209,19 +209,27 @@ export async function listBoardTasks(filter: TaskFilter = {}): Promise<BoardTask
   const rows = await prisma.task.findMany({
     where,
     orderBy: [{ position: "asc" }, { updatedAt: "desc" }],
-    select: {
-      id: true,
-      title: true,
-      status: true,
-      notes: true,
-      plannedStart: true,
-      plannedEnd: true,
-      project: { select: { id: true, name: true, customer: true } },
-      phase: { select: { title: true } },
-    },
+    select: boardTaskSelect,
   });
 
-  return rows.map((t) => ({
+  return rows.map(toBoardTask);
+}
+
+const boardTaskSelect = {
+  id: true,
+  title: true,
+  status: true,
+  notes: true,
+  plannedStart: true,
+  plannedEnd: true,
+  project: { select: { id: true, name: true, customer: true } },
+  phase: { select: { title: true } },
+} satisfies Prisma.TaskSelect;
+
+type BoardTaskRow = Prisma.TaskGetPayload<{ select: typeof boardTaskSelect }>;
+
+function toBoardTask(t: BoardTaskRow): BoardTask {
+  return {
     id: t.id,
     title: t.title,
     status: t.status as TaskStatus,
@@ -232,7 +240,24 @@ export async function listBoardTasks(filter: TaskFilter = {}): Promise<BoardTask
     projectName: t.project?.name ?? null,
     customer: t.project?.customer ?? null,
     phaseTitle: t.phase?.title ?? null,
-  }));
+  };
+}
+
+/**
+ * Offene Aufgaben fuers Dashboard. Terminiertes zuerst, danach das zuletzt
+ * Angefasste - was ohne Termin herumliegt, soll nicht die Liste verstopfen.
+ */
+export async function openTasksForDashboard(limit = 8): Promise<BoardTask[]> {
+  const rows = await prisma.task.findMany({
+    where: {
+      status: { not: TASK_DONE },
+      OR: [{ project: { archived: false } }, { projectId: null }],
+    },
+    orderBy: [{ plannedStart: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
+    take: limit,
+    select: boardTaskSelect,
+  });
+  return rows.map(toBoardTask);
 }
 
 async function nextTaskPosition(tx: Tx, status: TaskStatus): Promise<number> {
