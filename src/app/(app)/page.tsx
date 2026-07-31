@@ -49,7 +49,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/projekte/neu"
-          className="flex h-9 items-center rounded-md bg-blue-600 px-3.5 text-sm font-medium text-white hover:bg-blue-700"
+          className="flex h-9 items-center rounded-md bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
         >
           Neues Projekt
         </Link>

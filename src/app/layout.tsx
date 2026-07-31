@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
   title: "Projektmanager",
@@ -12,7 +13,13 @@ export const metadata: Metadata = {
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de">
+    // suppressHydrationWarning: das Skript unten setzt die Klasse .dark am
+    // <html>, bevor React uebernimmt - sonst ein Hydrationsfehler bei jedem
+    // Laden im dunklen Schema.
+    <html lang="de" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

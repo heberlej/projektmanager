@@ -350,6 +350,39 @@ setzt `TZ` in der `.env`.
 
 ---
 
+## Dunkles Farbschema
+
+Unten in der Navigation steht ein Schalter, der im Kreis zwischen **System**,
+**Hell** und **Dunkel** wechselt. Die Auswahl liegt im `localStorage` des
+Browsers (`pm-theme`), nicht in der Datenbank: sie hängt am Gerät, nicht an den
+Daten, und ohne Anmeldung gäbe es auch niemanden, an dem sie hängen könnte. Bei
+*System* folgt die App `prefers-color-scheme` und reagiert auf einen Wechsel im
+laufenden Betrieb. Das Outlook-Taskpane zieht mit.
+
+Umgesetzt ist das **nicht** über `dark:`-Varianten an jeder Klasse, sondern über
+die Palette selbst. Tailwind v4 übersetzt jede Farb-Utility in eine Variable –
+`.text-slate-500` wird zu `color:var(--color-slate-500)`. In `globals.css` hängt
+`.dark` diese Variablen um: die neutralen Stufen auf eine von Hand gesetzte
+dunkle Reihe, die Buntstufen gespiegelt (100↔900, 200↔800, 300↔700, 400↔600,
+500 bleibt).
+
+Das fällt mit dem Aufbau der Statusfarben zusammen. Ein Badge ist überall
+`bg-*-100 text-*-800 ring-*-300`; gespiegelt wird daraus von selbst dunkle
+Fläche mit heller Schrift, ohne dass `status.ts` etwas davon wissen muss.
+
+Zwei Dinge laufen unter der Spiegelung in die Irre. Ein **gefüllter Knopf** wäre
+plötzlich eine helle Fläche, deshalb hängt er nicht an `bg-blue-600`, sondern an
+den Token `bg-akzent` / `text-akzent-auf` / `hover:bg-akzent-stark`, die in
+beiden Schemata denselben Wert haben. Und der **Codeblock** im Notiz-Journal ist
+schon im hellen Schema dunkel – gespiegelt würde er zur hellen Insel, also steht
+er auf festen Werten.
+
+Ein Inline-Skript im Root-Layout setzt die Klasse `.dark` vor dem ersten
+Zeichnen. Ohne das blitzt beim Laden kurz das helle Schema auf, weil React erst
+später übernimmt – deshalb steht am `<html>` auch `suppressHydrationWarning`.
+
+---
+
 ## Sicherung
 
 ```bash

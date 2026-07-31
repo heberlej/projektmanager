@@ -13,7 +13,8 @@ const BUTTON_BASE =
   "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700",
+  // Akzent-Token statt bg-blue-600: bleibt im dunklen Schema Blau (globals.css).
+  primary: "bg-akzent text-akzent-auf hover:bg-akzent-stark",
   secondary: "bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50",
   ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
   danger: "bg-white text-rose-700 ring-1 ring-rose-300 hover:bg-rose-50",
