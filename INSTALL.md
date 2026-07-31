@@ -227,6 +227,47 @@ scheitert, steht in der [README](README.md#migrationen).
 
 ---
 
+## 9a. Bestehende Installation aktualisieren
+
+Wer den Stack schon vor den Migrationen laufen hatte, **darf nicht einfach
+`git pull` und `docker compose up -d` machen.** Das Schema wurde damals per
+`prisma db push` angelegt, es gibt also keine Tabelle `_prisma_migrations`. Der
+Entrypoint findet jetzt Migrationen, ruft `migrate deploy` auf, und das versucht
+`0_init` auf bereits bestehende Tabellen anzuwenden – Fehlschlag mit
+*relation already exists*, der Container kommt nicht hoch.
+
+Richtige Reihenfolge – erst bauen, dann den Stand eintragen, **dann** starten:
+
+```bash
+git pull
+docker compose build app
+docker compose run --rm -T --entrypoint sh app -c 'npx prisma migrate resolve --applied 0_init'
+docker compose up -d
+```
+
+Der dritte Befehl markiert nur den Ist-Zustand als erledigt, ohne etwas
+auszuführen. Danach wendet der Entrypoint die beiden neueren Migrationen an –
+darunter der Umbau von `Task.done` auf `Task.status`, der die erledigten
+Aufgaben überträgt.
+
+Kontrolle:
+
+```bash
+docker compose exec app npx prisma migrate status
+docker compose exec -T db psql -U pm -d pm -c 'SELECT status, count(*) FROM "Task" GROUP BY status;'
+```
+
+Erwartet: *Database schema is up to date!* und eine Verteilung, in der die
+früher erledigten Aufgaben als `ERLEDIGT` auftauchen.
+
+Wer lieber auf Nummer sicher geht, sichert vorher:
+
+```bash
+./scripts/backup.sh
+```
+
+---
+
 ## 10. Outlook-Add-in einrichten (optional)
 
 Nur für das **neue Outlook** und OWA.
