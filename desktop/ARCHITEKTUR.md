@@ -96,6 +96,23 @@ weil jemand ein Programm entfernt.
 
 ---
 
+## Gebaut wird außerhalb von OneDrive
+
+`%LOCALAPPDATA%\projektmanager-bau`, nicht im Repo-Ordner. Das ist keine
+Marotte, sondern Erfahrung aus dem ersten Versuch: 320 MB Postgres-Binärdateien
+in einen synchronisierten Ordner zu entpacken endete damit, dass das komplette
+`bin`-Verzeichnis fehlte – OneDrive greift beim Entpacken dazwischen.
+
+`scripts\zusammenbauen.ps1` legt die Baustelle an, kopiert Hülle und Anwendung
+dorthin und ruft electron-builder. Im Repo bleiben nur Quellen.
+
+Eine Stelle braucht dabei Handarbeit: Der Standalone-Build von Next zieht nur
+mit, was der **Server zur Laufzeit** braucht. Die Prisma-Kommandozeile gehört
+nicht dazu – die Anwendung ruft sie aber beim Start für `migrate deploy`. Sie
+wird deshalb ausdrücklich mitkopiert.
+
+---
+
 ## Übernahme der bestehenden Installation
 
 Der Umzug aus WSL ist ein `pg_dump` und ein Kopieren der Dateiablage –

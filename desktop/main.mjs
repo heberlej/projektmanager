@@ -116,6 +116,28 @@ async function migrationenFahren(datenbankUrl) {
   });
 }
 
+/**
+ * Standard-Tags und die beiden Vorlagen anlegen. Im Docker-Betrieb macht das
+ * der Entrypoint; hier muss es jemand tun, sonst startet die Anwendung mit
+ * leerer Vorlagenliste. Der Seed ist idempotent und darf bei jedem Start
+ * mitlaufen.
+ */
+async function seedFahren(datenbankUrl) {
+  return new Promise((aufloesen) => {
+    const seed = spawn(process.execPath, [path.join(ressourcen, "app", "prisma", "seed.mjs")], {
+      cwd: path.join(ressourcen, "app"),
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", DATABASE_URL: datenbankUrl },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    seed.stdout.on("data", (d) => process.stdout.write(`[seed] ${d}`));
+    seed.stderr.on("data", (d) => process.stderr.write(`[seed] ${d}`));
+    // Ein fehlgeschlagener Seed ist aergerlich, aber kein Grund, den Start
+    // abzubrechen - die Anwendung ist auch ohne Vorlagen benutzbar.
+    seed.on("exit", () => aufloesen());
+  });
+}
+
 async function hochfahren() {
   await mkdir(path.join(datenVerzeichnis, "uploads"), { recursive: true });
 
@@ -133,6 +155,7 @@ async function hochfahren() {
 
   await schrittMelden(ersterStart ? "Datenbank wird angelegt …" : "Datenbank wird aktualisiert …");
   await migrationenFahren(url);
+  await seedFahren(url);
 
   await schrittMelden("Anwendung wird gestartet …");
   const port = await nextStarten(url);

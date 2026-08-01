@@ -15,3 +15,6 @@ certs/*
 uploads/
 backups/
 .DS_Store
+
+# Werkzeuge und Bauergebnisse der Windows-Fassung
+desktop/.werkzeug/
