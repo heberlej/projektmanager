@@ -5,6 +5,12 @@
 #
 # Standardziel ist ./backups. Alte Sicherungen werden nach BACKUP_KEEP Tagen
 # entfernt (Vorgabe: 30).
+#
+# Ist BACKUP_MIRROR gesetzt, wandert jede Sicherung zusaetzlich dorthin. Das ist
+# kein Luxus: Sicherung und Daten liegen sonst in derselben WSL-Distribution auf
+# derselben Platte - ein `wsl --unregister` oder ein defektes Dateisystem nimmt
+# beides gleichzeitig mit. Sinnvolles Ziel ist ein Ordner unter /mnt/c, der vom
+# Rechner weg synchronisiert wird.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -39,6 +45,22 @@ docker compose run --rm --no-deps -T --entrypoint sh app \
 echo "[backup] raeume Sicherungen aelter als $KEEP_DAYS Tage auf"
 find "$TARGET" -maxdepth 1 -name 'db-*.sql.gz' -mtime "+$KEEP_DAYS" -delete
 find "$TARGET" -maxdepth 1 -name 'uploads-*.tar.gz' -mtime "+$KEEP_DAYS" -delete
+
+if [ -n "${BACKUP_MIRROR:-}" ]; then
+  # Fehlt das Ziel, ist das keine Kleinigkeit, sondern der Zweck der Uebung:
+  # lieber laut scheitern als still nur lokal sichern.
+  if ! mkdir -p "$BACKUP_MIRROR" 2>/dev/null; then
+    echo "[backup] FEHLER: Spiegelziel '$BACKUP_MIRROR' nicht erreichbar" >&2
+    exit 1
+  fi
+  echo "[backup] spiegele nach $BACKUP_MIRROR"
+  cp "$TARGET/db-$STAMP.sql.gz" "$TARGET/uploads-$STAMP.tar.gz" "$BACKUP_MIRROR/"
+  # Auch die Kopie altern lassen, sonst laeuft das Ziel voll.
+  find "$BACKUP_MIRROR" -maxdepth 1 -name 'db-*.sql.gz' -mtime "+$KEEP_DAYS" -delete
+  find "$BACKUP_MIRROR" -maxdepth 1 -name 'uploads-*.tar.gz' -mtime "+$KEEP_DAYS" -delete
+else
+  echo "[backup] Hinweis: BACKUP_MIRROR nicht gesetzt - Sicherung liegt nur in der WSL"
+fi
 
 echo "[backup] fertig"
 ls -lh "$TARGET" | tail -n +2
