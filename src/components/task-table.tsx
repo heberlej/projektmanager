@@ -11,7 +11,11 @@ import { ConfirmButton } from "./confirm-button";
 import { ScheduleForm } from "./schedule-form";
 import { Select } from "./ui";
 import { cn } from "@/lib/utils";
+import { KOPFZEILE, SortHeader, TabellenRahmen, ZEILE, type Sortierung } from "./sortable";
 import type { BoardTaskData } from "./task-board";
+
+export const AUFGABEN_SPALTEN = ["titel", "status", "prioritaet", "faellig", "termin"] as const;
+export type AufgabenSpalte = (typeof AUFGABEN_SPALTEN)[number];
 
 /** Tagesgenau: heute faellig ist nicht ueberfaellig. */
 function faelligkeit(dueDate: Date | string | null) {
@@ -35,25 +39,67 @@ function faelligkeit(dueDate: Date | string | null) {
  * nebeneinander statt in Spalten nach Status - dafuer laesst sich der Status
  * hier nicht ziehen, sondern nur auswaehlen.
  */
-export function TaskTable({ tasks }: { tasks: BoardTaskData[] }) {
+export function TaskTable({
+  tasks,
+  params,
+  sortierung,
+}: {
+  tasks: BoardTaskData[];
+  params: Record<string, string | string[] | undefined>;
+  sortierung: Sortierung<AufgabenSpalte>;
+}) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <TabellenRahmen>
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500 uppercase">
-            <th className="px-3 py-2 font-medium">Aufgabe</th>
-            <th className="w-36 px-3 py-2 font-medium">Status</th>
-            <th className="w-24 px-3 py-2 font-medium">Priorität</th>
-            <th className="w-28 px-3 py-2 font-medium">Fällig</th>
-            <th className="w-56 px-3 py-2 font-medium">Termin</th>
-            <th className="w-10 px-3 py-2" />
+          <tr className={KOPFZEILE}>
+            <SortHeader pfad="/aufgaben" params={params} aktiv={sortierung} spalte="titel">
+              Aufgabe
+            </SortHeader>
+            <SortHeader
+              pfad="/aufgaben"
+              params={params}
+              aktiv={sortierung}
+              spalte="status"
+              className="w-36"
+            >
+              Status
+            </SortHeader>
+            <SortHeader
+              pfad="/aufgaben"
+              params={params}
+              aktiv={sortierung}
+              spalte="prioritaet"
+              className="w-24"
+            >
+              Priorität
+            </SortHeader>
+            <SortHeader
+              pfad="/aufgaben"
+              params={params}
+              aktiv={sortierung}
+              spalte="faellig"
+              className="w-28"
+            >
+              Fällig
+            </SortHeader>
+            <SortHeader
+              pfad="/aufgaben"
+              params={params}
+              aktiv={sortierung}
+              spalte="termin"
+              className="w-56"
+            >
+              Termin
+            </SortHeader>
+            <th scope="col" className="w-10 px-3 py-2.5" />
           </tr>
         </thead>
         <tbody>
           {tasks.map((task) => {
             const faellig = faelligkeit(task.dueDate);
             return (
-              <tr key={task.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+              <tr key={task.id} className={ZEILE}>
                 <td className="px-3 py-2">
                   <p className="font-medium text-slate-900">{task.title}</p>
                   {task.notes ? (
@@ -171,6 +217,6 @@ export function TaskTable({ tasks }: { tasks: BoardTaskData[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </TabellenRahmen>
   );
 }

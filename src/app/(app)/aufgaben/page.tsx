@@ -2,7 +2,9 @@ import Link from "next/link";
 import { listBoardTasks, taskCountsByStatus } from "@/lib/service";
 import { TASK_STATUS_LABEL, TASK_STATUS_ORDER, type TaskStatus } from "@/lib/status";
 import { TaskBoard, type BoardTaskData } from "@/components/task-board";
-import { TaskTable } from "@/components/task-table";
+import { AUFGABEN_SPALTEN, TaskTable, type AufgabenSpalte } from "@/components/task-table";
+import { leseSortierung } from "@/components/sortable";
+import { PRIORITY_ORDER } from "@/lib/status";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { Card, CardBody, EmptyState } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,42 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
     dueDate: t.dueDate,
     recurrence: t.recurrence,
   }));
+
+  const sortierung = leseSortierung<AufgabenSpalte>(params, AUFGABEN_SPALTEN, {
+    key: "faellig",
+    richtung: "asc",
+  });
+
+  // Wie bei den Projekten: sortiert wird hier, damit dieselbe Regel fuer alle
+  // Spalten gilt - auch fuer die, die es in der Datenbank so nicht gibt.
+  const richtung = sortierung.richtung === "asc" ? 1 : -1;
+  const zeit = (wert: Date | string | null) => (wert ? new Date(wert).getTime() : null);
+  const sortiert = [...karten].sort((a, b) => {
+    switch (sortierung.key) {
+      case "titel":
+        return a.title.localeCompare(b.title, "de") * richtung;
+      case "status":
+        return (TASK_STATUS_ORDER.indexOf(a.status) - TASK_STATUS_ORDER.indexOf(b.status)) * richtung;
+      case "prioritaet":
+        return (PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority)) * richtung;
+      case "termin": {
+        // Ohne Termin ans Ende, in beide Richtungen - Leeres ist keine Angabe.
+        const x = zeit(a.plannedStart);
+        const y = zeit(b.plannedStart);
+        if (x === null) return y === null ? 0 : 1;
+        if (y === null) return -1;
+        return (x - y) * richtung;
+      }
+      case "faellig":
+      default: {
+        const x = zeit(a.dueDate);
+        const y = zeit(b.dueDate);
+        if (x === null) return y === null ? 0 : 1;
+        if (y === null) return -1;
+        return (x - y) * richtung;
+      }
+    }
+  });
 
   const offen = TASK_STATUS_ORDER.filter((s) => s !== "ERLEDIGT").reduce(
     (n, s) => n + counts[s as TaskStatus],
@@ -77,9 +115,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
             >
               Filtern
             </button>
-            {/* Die Ansicht haengt am Formular, damit der Suchbegriff beim
-                Umschalten stehen bleibt. */}
+            {/* Ansicht und Sortierung haengen am Formular, damit das Filtern
+                sie nicht zuruecksetzt. */}
             <input type="hidden" name="ansicht" value={ansicht} />
+            <input type="hidden" name="sort" value={sortierung.key} />
+            <input type="hidden" name="richtung" value={sortierung.richtung} />
             {q ? (
               <Link
                 href={ansicht === "board" ? "/aufgaben?ansicht=board" : "/aufgaben"}
@@ -95,6 +135,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
               const ziel = new URLSearchParams();
               if (q) ziel.set("q", q);
               if (wert === "board") ziel.set("ansicht", "board");
+              else if (sortierung.key !== "faellig" || sortierung.richtung !== "asc") {
+                ziel.set("sort", sortierung.key);
+                if (sortierung.richtung === "desc") ziel.set("richtung", "desc");
+              }
               const href = ziel.size > 0 ? `/aufgaben?${ziel}` : "/aufgaben";
               return (
                 <Link
@@ -128,13 +172,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
       ) : ansicht === "board" ? (
         <TaskBoard tasks={karten} />
       ) : (
-        <TaskTable tasks={karten} />
+        <TaskTable tasks={sortiert} params={params} sortierung={sortierung} />
       )}
 
       <p className="mt-3 text-xs text-slate-500">
         {ansicht === "board"
           ? `Spalten: ${TASK_STATUS_ORDER.map((s) => TASK_STATUS_LABEL[s]).join(" · ")}. Ziehen setzt den Status. `
-          : "Sortiert nach Fälligkeit, dann Priorität. "}
+          : "Ein Klick auf die Spaltenüberschrift sortiert, ein zweiter dreht die Richtung. "}
         „Erledigt" ist der Status, kein zusätzliches Häkchen. Diese Liste steht für sich – Aufgaben
         aus Projekten erscheinen hier nicht, sie stehen im jeweiligen Projekt. Eine wiederkehrende
         Aufgabe legt ihren Nachfolger an, sobald du sie abhakst.

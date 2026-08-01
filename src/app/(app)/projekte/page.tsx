@@ -4,9 +4,11 @@ import { listCustomers, listProjects, listTags } from "@/lib/service";
 import { isStatus } from "@/lib/status";
 import { Board } from "@/components/board";
 import { ProjectFilters } from "@/components/project-filters";
-import { ProjectTable } from "@/components/project-table";
+import { PROJEKT_SPALTEN, ProjectTable, type ProjektSpalte } from "@/components/project-table";
 import type { ProjectCardData } from "@/components/project-card";
 import { EmptyState } from "@/components/ui";
+import { leseSortierung } from "@/components/sortable";
+import { STATUS_ORDER } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,11 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Sea
     listTags(),
   ]);
 
+  const sortierung = leseSortierung<ProjektSpalte>(params, PROJEKT_SPALTEN, {
+    key: "zuletzt",
+    richtung: "desc",
+  });
+
   const cards: ProjectCardData[] = projects.map((project) => ({
     id: project.id,
     name: project.name,
@@ -53,6 +60,32 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Sea
       notes: project._count.notes,
     },
   }));
+
+  /*
+   * Sortiert wird hier, nicht in der Datenbank: der Fortschritt wird gerechnet
+   * und steht dort gar nicht als Spalte. Bei dieser Groessenordnung ist das
+   * belanglos - und es haelt die Regeln an einer Stelle beisammen.
+   */
+  const richtung = sortierung.richtung === "asc" ? 1 : -1;
+  const sortiert = [...cards].sort((a, b) => {
+    switch (sortierung.key) {
+      case "name":
+        return a.name.localeCompare(b.name, "de") * richtung;
+      case "kunde":
+        return (a.customer.localeCompare(b.customer, "de") || a.name.localeCompare(b.name, "de")) * richtung;
+      case "status":
+        return (STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)) * richtung;
+      case "fortschritt": {
+        const anteil = (p: ProjectCardData) =>
+          p.progress.total === 0 ? -1 : p.progress.done / p.progress.total;
+        return (anteil(a) - anteil(b)) * richtung;
+      }
+      case "zuletzt":
+      default:
+        // updatedAt ist Date oder ISO-String, je nachdem wer die Karte baut.
+        return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * richtung;
+    }
+  });
 
   return (
     <div className="mx-auto max-w-[100rem]">
@@ -83,7 +116,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Sea
           hint={q || kunde || tag || statusParam ? "Filter zurücksetzen oder Suchbegriff ändern." : undefined}
         />
       ) : view === "tabelle" ? (
-        <ProjectTable projects={cards} />
+        <ProjectTable projects={sortiert} params={params} sortierung={sortierung} />
       ) : (
         <Board projects={cards} />
       )}

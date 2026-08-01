@@ -300,6 +300,16 @@ Verknüpfung setzen oder `PM_BASE_URL` als Umgebungsvariable.
 
 ## Aufgabenboard
 
+Beide Tabellen – Projekte wie Aufgaben – **sortieren per Klick auf die
+Spaltenüberschrift**, ein zweiter Klick dreht die Richtung. Die Sortierung steht
+in der Adresse (`?sort=name&richtung=desc`) und überlebt damit Filtern,
+Umschalten und ein Lesezeichen. Sortiert wird in der Seite, nicht in der
+Datenbank: der Fortschritt wird gerechnet und existiert dort gar nicht als
+Spalte, und so gilt für alle Spalten dieselbe Regel.
+
+Unterhalb von `md` weicht die Projekttabelle Karten – eine Tabelle mit sechs
+Spalten auf einem Telefon wäre nur eine Einladung zum Querscrollen.
+
 Unter **Aufgaben** liegt eine **eigenständige Liste**. Sie öffnet als **Tabelle**
 – alle Angaben nebeneinander, Status per Auswahl. Wer lieber schiebt, schaltet
 auf *Board* um: vier Spalten *Offen · In Arbeit · Wartet · Erledigt*, Ziehen
