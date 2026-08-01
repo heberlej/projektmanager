@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PRIORITY_ORDER, STATUS_ORDER, TAG_COLORS, TASK_STATUS_ORDER } from "./status";
 import { parseLocalDateTime, PLANNED_KINDS } from "./planning";
+import { RECURRENCES } from "./recurrence";
 
 /**
  * Einzige Validierungsquelle - wird sowohl von den Server Actions der UI als
@@ -47,6 +48,27 @@ export const taskSchema = z.object({
   title: requiredText(300, "Aufgabe"),
   notes: trimmed(2000).optional().or(z.literal("")),
   status: taskStatusSchema.default("OFFEN"),
+  priority: z.enum(PRIORITY_ORDER).default("NORMAL"),
+  /**
+   * Faelligkeit kommt als <input type="date"> ohne Uhrzeit. Auf 12:00 Ortszeit
+   * gelegt, damit die Sommerzeitumstellung den Tag nicht kippen kann - um
+   * Mitternacht waere der 29.03. je nach Zone der 28.
+   */
+  dueDate: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .transform((value) => {
+      if (!value) return null;
+      const d = new Date(`${value}T12:00:00`);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }),
+  recurrence: z
+    .enum(RECURRENCES)
+    .optional()
+    .or(z.literal(""))
+    .transform((value) => (value ? (value as (typeof RECURRENCES)[number]) : null)),
 });
 
 export const noteSchema = z.object({

@@ -7,10 +7,12 @@ import {
   STATUS_ORDER,
   TASK_DONE,
   TASK_STATUS_ORDER,
+  type Priority,
   type Status,
   type TaskStatus,
 } from "./status";
 import { byStart, type CalendarEntry } from "./planning";
+import { faelligkeitDesNachfolgers, type Recurrence } from "./recurrence";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
@@ -167,9 +169,12 @@ export type BoardTask = {
   id: string;
   title: string;
   status: TaskStatus;
+  priority: Priority;
   notes: string | null;
   plannedStart: Date | null;
   plannedEnd: Date | null;
+  dueDate: Date | null;
+  recurrence: Recurrence | null;
 };
 
 export type TaskFilter = {
@@ -199,7 +204,13 @@ export async function listBoardTasks(filter: TaskFilter = {}): Promise<BoardTask
 
   const rows = await prisma.task.findMany({
     where,
-    orderBy: [{ position: "asc" }, { updatedAt: "desc" }],
+    // Faelligkeit schlaegt Prioritaet: was heute faellig ist, ist dringender als
+    // was irgendwann wichtig ist. Undatiertes sortiert sich dahinter ein.
+    orderBy: [
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { priority: "desc" },
+      { position: "asc" },
+    ],
     select: boardTaskSelect,
   });
 
@@ -210,9 +221,12 @@ const boardTaskSelect = {
   id: true,
   title: true,
   status: true,
+  priority: true,
   notes: true,
   plannedStart: true,
   plannedEnd: true,
+  dueDate: true,
+  recurrence: true,
 } satisfies Prisma.TaskSelect;
 
 type BoardTaskRow = Prisma.TaskGetPayload<{ select: typeof boardTaskSelect }>;
@@ -222,9 +236,12 @@ function toBoardTask(t: BoardTaskRow): BoardTask {
     id: t.id,
     title: t.title,
     status: t.status as TaskStatus,
+    priority: t.priority as Priority,
     notes: t.notes,
     plannedStart: t.plannedStart,
     plannedEnd: t.plannedEnd,
+    dueDate: t.dueDate,
+    recurrence: t.recurrence as Recurrence | null,
   };
 }
 
@@ -240,7 +257,12 @@ export async function openTasksForDashboard(limit = 8): Promise<BoardTask[]> {
       status: { not: TASK_DONE },
       projectId: null,
     },
-    orderBy: [{ plannedStart: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
+    orderBy: [
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { plannedStart: { sort: "asc", nulls: "last" } },
+      { priority: "desc" },
+      { updatedAt: "desc" },
+    ],
     take: limit,
     select: boardTaskSelect,
   });
@@ -252,11 +274,25 @@ async function nextTaskPosition(tx: Tx, status: TaskStatus): Promise<number> {
   return (last._max.position ?? 0) + 1;
 }
 
-/** Statuswechsel einer Aufgabe; landet hinten in der Zielspalte. */
+/**
+ * Statuswechsel einer Aufgabe; landet hinten in der Zielspalte.
+ *
+ * Wird eine wiederkehrende freie Aufgabe auf ERLEDIGT gesetzt, entsteht in
+ * derselben Transaktion ihr Nachfolger. Die erledigte bleibt stehen - sie ist
+ * der Beleg, dass es getan wurde.
+ */
 export async function changeTaskStatus(taskId: string, to: TaskStatus) {
   const current = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { status: true, projectId: true },
+    select: {
+      status: true,
+      projectId: true,
+      title: true,
+      notes: true,
+      priority: true,
+      dueDate: true,
+      recurrence: true,
+    },
   });
   if (!current || current.status === to) return current?.projectId ?? null;
 
@@ -265,6 +301,24 @@ export async function changeTaskStatus(taskId: string, to: TaskStatus) {
       where: { id: taskId },
       data: { status: to, position: await nextTaskPosition(tx, to) },
     });
+
+    if (to === TASK_DONE && current.recurrence && !current.projectId) {
+      await tx.task.create({
+        data: {
+          title: current.title,
+          notes: current.notes,
+          priority: current.priority,
+          recurrence: current.recurrence,
+          status: "OFFEN",
+          dueDate: faelligkeitDesNachfolgers(
+            current.recurrence as Recurrence,
+            current.dueDate,
+          ),
+          position: await nextTaskPosition(tx, "OFFEN"),
+        },
+      });
+    }
+
     if (current.projectId) {
       await tx.project.update({ where: { id: current.projectId }, data: { updatedAt: new Date() } });
     }
@@ -277,9 +331,12 @@ export type TaskCreateData = {
   projectId?: string | null;
   phaseId?: string | null;
   status?: TaskStatus;
+  priority?: Priority;
   notes?: string | null;
   plannedStart?: Date | null;
   plannedEnd?: Date | null;
+  dueDate?: Date | null;
+  recurrence?: Recurrence | null;
 };
 
 /**
@@ -290,6 +347,9 @@ export async function createTask(data: TaskCreateData) {
   const projectId = data.projectId || null;
   const phaseId = projectId ? data.phaseId || null : null;
   const status = data.status ?? "OFFEN";
+  // Wiederholung gibt es nur ohne Projekt: eine Projektaufgabe, die sich selbst
+  // nachbildet, wuerde die Phasenstruktur unterlaufen.
+  const recurrence = projectId ? null : (data.recurrence ?? null);
 
   return prisma.$transaction(async (tx) => {
     const task = await tx.task.create({
@@ -298,9 +358,12 @@ export async function createTask(data: TaskCreateData) {
         projectId,
         phaseId,
         status,
+        priority: data.priority ?? "NORMAL",
         notes: data.notes || null,
         plannedStart: data.plannedStart ?? null,
         plannedEnd: data.plannedEnd ?? null,
+        dueDate: data.dueDate ?? null,
+        recurrence,
         position: await nextTaskPosition(tx, status),
       },
     });
@@ -309,6 +372,127 @@ export async function createTask(data: TaskCreateData) {
     }
     return task;
   });
+}
+
+// --- Volltextsuche ----------------------------------------------------------
+
+export type SuchArt = "PROJEKT" | "NOTIZ" | "AUFGABE";
+
+/** Marken um die Fundstellen - werden erst nach dem Escapen zu <b>. */
+const TREFFER_AUF = "§§T§§";
+const TREFFER_ZU = "§§/T§§";
+
+/**
+ * Macht aus dem Rohauszug sicheres HTML: erst alles escapen, dann die eigenen
+ * Marken durch <b> ersetzen. Steht die Marke zufaellig im Text, wird daraus
+ * hoechstens ueberfluessiges Fett - kein ausfuehrbarer Code.
+ */
+function auszugAlsHtml(roh: string): string {
+  const sicher = roh
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+  return sicher.replaceAll(TREFFER_AUF, "<b>").replaceAll(TREFFER_ZU, "</b>");
+}
+
+export type SuchTreffer = {
+  art: SuchArt;
+  id: string;
+  titel: string;
+  auszug: string;
+  href: string;
+  archiviert: boolean;
+};
+
+type SuchZeile = {
+  art: SuchArt;
+  id: string;
+  titel: string;
+  auszug: string | null;
+  projekt_id: string | null;
+  archiviert: boolean;
+  rang: number;
+};
+
+/**
+ * Sucht ueber Projekte, Notizen und Aufgaben.
+ *
+ * Postgres-Volltext statt `contains`: damit findet "Migration" auch
+ * "Migrationen", und die Rangfolge kommt aus der Datenbank statt aus einer
+ * selbstgebauten Heuristik. Die tsvector-Spalten sind generiert (siehe
+ * Migration 20260801173000), es gibt also nichts nachzupflegen.
+ *
+ * Archiviertes ist absichtlich dabei - "Archivieren statt Loeschen" waere sonst
+ * die Haelfte wert. Die Treffer sind als solche gekennzeichnet.
+ */
+export async function suche(begriff: string, limit = 40): Promise<SuchTreffer[]> {
+  const q = begriff.trim();
+  if (!q) return [];
+
+  // ts_headline setzt standardmaessig <b> um die Fundstellen und laesst HTML
+  // aus den Daten unangetastet - eine Notiz mit <script> landete damit
+  // ausfuehrbar in der Seite. Deshalb eigene Marken, die unten nach dem
+  // Escapen durch <b> ersetzt werden.
+  const kopf =
+    "MaxWords=20, MinWords=6, ShortWord=3, MaxFragments=1, FragmentDelimiter=' … ', " +
+    `StartSel=${TREFFER_AUF}, StopSel=${TREFFER_ZU}`;
+
+  const zeilen = await prisma.$queryRaw<SuchZeile[]>`
+    WITH frage AS (SELECT websearch_to_tsquery('german', ${q}) AS tsq)
+    SELECT 'PROJEKT' AS art,
+           p.id,
+           p.name AS titel,
+           ts_headline('german', concat_ws(' · ', p.customer, nullif(p.description, '')), frage.tsq, ${kopf}) AS auszug,
+           p.id AS projekt_id,
+           p.archived AS archiviert,
+           ts_rank(p.suche, frage.tsq) AS rang
+      FROM "Project" p, frage
+     WHERE p.suche @@ frage.tsq
+
+    UNION ALL
+
+    SELECT 'NOTIZ' AS art,
+           n.id,
+           p.name AS titel,
+           ts_headline('german', n.body, frage.tsq, ${kopf}) AS auszug,
+           p.id AS projekt_id,
+           p.archived AS archiviert,
+           ts_rank(n.suche, frage.tsq) AS rang
+      FROM "Note" n
+      JOIN "Project" p ON p.id = n."projectId", frage
+     WHERE n.suche @@ frage.tsq
+
+    UNION ALL
+
+    SELECT 'AUFGABE' AS art,
+           t.id,
+           t.title AS titel,
+           ts_headline('german', coalesce(nullif(t.notes, ''), t.title), frage.tsq, ${kopf}) AS auszug,
+           t."projectId" AS projekt_id,
+           coalesce(p.archived, false) AS archiviert,
+           ts_rank(t.suche, frage.tsq) AS rang
+      FROM "Task" t
+      LEFT JOIN "Project" p ON p.id = t."projectId", frage
+     WHERE t.suche @@ frage.tsq
+
+     ORDER BY rang DESC, titel ASC
+     LIMIT ${limit}
+  `;
+
+  return zeilen.map((z) => ({
+    art: z.art,
+    id: z.id,
+    titel: z.titel,
+    auszug: auszugAlsHtml((z.auszug ?? "").trim()),
+    archiviert: z.archiviert,
+    href:
+      z.art === "AUFGABE" && !z.projekt_id
+        ? "/aufgaben"
+        : z.projekt_id
+          ? `/projekte/${z.projekt_id}`
+          : "/projekte",
+  }));
 }
 
 /** Zaehlt die Spalten fuer die Kopfzeile des Boards - nur freie Aufgaben. */

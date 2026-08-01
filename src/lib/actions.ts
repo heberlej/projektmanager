@@ -229,6 +229,9 @@ export async function addLooseTaskAction(
     title: formData.get("title"),
     notes: formData.get("notes") ?? "",
     status: formData.get("status") || undefined,
+    priority: formData.get("priority") || undefined,
+    dueDate: formData.get("dueDate") ?? "",
+    recurrence: formData.get("recurrence") ?? "",
   });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
 
@@ -237,6 +240,9 @@ export async function addLooseTaskAction(
     projectId: null,
     notes: parsed.data.notes || null,
     status: parsed.data.status,
+    priority: parsed.data.priority,
+    dueDate: parsed.data.dueDate,
+    recurrence: parsed.data.recurrence,
   });
   refreshProject(null);
   return { ok: true };

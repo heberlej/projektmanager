@@ -9,6 +9,8 @@ import {
   STALE_AFTER_DAYS,
   STATUS_BADGE,
   STATUS_LABEL,
+  PRIORITY_BADGE,
+  PRIORITY_LABEL,
   STATUS_ORDER,
   TASK_STATUS_BADGE,
   TASK_STATUS_LABEL,
@@ -106,6 +108,32 @@ export default async function DashboardPage() {
                   {TASK_STATUS_LABEL[task.status]}
                 </span>
                 <span className="text-sm font-medium text-slate-900">{task.title}</span>
+                {task.priority !== "NORMAL" ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+                      PRIORITY_BADGE[task.priority],
+                    )}
+                  >
+                    {PRIORITY_LABEL[task.priority]}
+                  </span>
+                ) : null}
+                {task.dueDate ? (
+                  <span
+                    className={cn(
+                      "text-xs tabular-nums",
+                      new Date(task.dueDate) < new Date(new Date().toDateString())
+                        ? "font-medium text-rose-700"
+                        : "text-slate-500",
+                    )}
+                  >
+                    fällig{" "}
+                    {new Date(task.dueDate).toLocaleDateString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                    })}
+                  </span>
+                ) : null}
                 {task.plannedStart && task.plannedEnd ? (
                   <span className="ml-auto shrink-0 text-xs tabular-nums text-slate-600">
                     {formatRange(task.plannedStart, task.plannedEnd)}

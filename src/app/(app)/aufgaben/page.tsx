@@ -26,9 +26,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
     id: t.id,
     title: t.title,
     status: t.status,
+    priority: t.priority,
     notes: t.notes,
     plannedStart: t.plannedStart,
     plannedEnd: t.plannedEnd,
+    dueDate: t.dueDate,
+    recurrence: t.recurrence,
   }));
 
   const offen = TASK_STATUS_ORDER.filter((s) => s !== "ERLEDIGT").reduce(
@@ -98,7 +101,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
       <p className="mt-3 text-xs text-slate-500">
         Spalten: {TASK_STATUS_ORDER.map((s) => TASK_STATUS_LABEL[s]).join(" · ")}. Ziehen setzt den
         Status; „Erledigt" ist der Status, kein zusätzliches Häkchen. Diese Liste steht für sich –
-        Aufgaben aus Projekten erscheinen hier nicht, sie stehen im jeweiligen Projekt.
+        Aufgaben aus Projekten erscheinen hier nicht, sie stehen im jeweiligen Projekt. Sortiert
+        wird nach Fälligkeit, dann Priorität. Eine wiederkehrende Aufgabe legt ihren Nachfolger an,
+        sobald du sie abhakst.
       </p>
     </div>
   );

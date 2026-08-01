@@ -5,21 +5,28 @@ import { useRouter } from "next/navigation";
 import { deleteTaskAction, moveTaskAction } from "@/lib/actions";
 import { ScheduleForm } from "./schedule-form";
 import {
+  PRIORITY_BADGE,
+  PRIORITY_LABEL,
   TASK_STATUS_DOT,
   TASK_STATUS_LABEL,
   TASK_STATUS_ORDER,
+  type Priority,
   type TaskStatus,
 } from "@/lib/status";
 import { formatRange } from "@/lib/planning";
+import { RECURRENCE_LABEL, type Recurrence } from "@/lib/recurrence";
 import { cn } from "@/lib/utils";
 
 export type BoardTaskData = {
   id: string;
   title: string;
   status: TaskStatus;
+  priority: Priority;
   notes: string | null;
   plannedStart: Date | string | null;
   plannedEnd: Date | string | null;
+  dueDate: Date | string | null;
+  recurrence: Recurrence | null;
 };
 
 /**
@@ -113,13 +120,53 @@ export function TaskBoard({ tasks }: { tasks: BoardTaskData[] }) {
   );
 }
 
+/** Tagesgenauer Vergleich: heute faellig ist nicht ueberfaellig. */
+function faelligkeitsLage(dueDate: Date | string | null) {
+  if (!dueDate) return null;
+  const faellig = new Date(dueDate);
+  const heute = new Date();
+  const tage = Math.round(
+    (new Date(faellig.getFullYear(), faellig.getMonth(), faellig.getDate()).getTime() -
+      new Date(heute.getFullYear(), heute.getMonth(), heute.getDate()).getTime()) /
+      86_400_000,
+  );
+  const text = faellig.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  if (tage < 0) return { text: `überfällig seit ${text}`, klasse: "text-rose-700 font-medium" };
+  if (tage === 0) return { text: "heute fällig", klasse: "text-amber-900 font-medium" };
+  if (tage === 1) return { text: "morgen fällig", klasse: "text-slate-600" };
+  return { text: `fällig ${text}`, klasse: "text-slate-600" };
+}
+
 function TaskCard({ task }: { task: BoardTaskData }) {
+  const faellig = faelligkeitsLage(task.dueDate);
+
   return (
     <article className="rounded-md border border-slate-200 bg-white p-2.5 shadow-sm">
       <p className="text-sm font-medium text-slate-900">{task.title}</p>
 
       {task.notes ? (
         <p className="mt-1 line-clamp-2 text-xs text-slate-500">{task.notes}</p>
+      ) : null}
+
+      {faellig || task.priority !== "NORMAL" || task.recurrence ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+          {task.priority !== "NORMAL" ? (
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset",
+                PRIORITY_BADGE[task.priority],
+              )}
+            >
+              {PRIORITY_LABEL[task.priority]}
+            </span>
+          ) : null}
+          {faellig ? <span className={faellig.klasse}>{faellig.text}</span> : null}
+          {task.recurrence ? (
+            <span className="text-slate-500" title="wiederkehrend">
+              ↻ {RECURRENCE_LABEL[task.recurrence]}
+            </span>
+          ) : null}
+        </div>
       ) : null}
 
       {task.plannedStart && task.plannedEnd ? (

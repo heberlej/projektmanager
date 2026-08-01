@@ -4,7 +4,8 @@ import { useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { addLooseTaskAction, type ActionState } from "@/lib/actions";
 import { Button, Input, Select } from "./ui";
-import { TASK_STATUS_LABEL, TASK_STATUS_ORDER } from "@/lib/status";
+import { PRIORITY_LABEL, PRIORITY_ORDER, TASK_STATUS_LABEL, TASK_STATUS_ORDER } from "@/lib/status";
+import { RECURRENCES, RECURRENCE_LABEL } from "@/lib/recurrence";
 
 /**
  * Aufgabe direkt vom Board aus anlegen. Immer ohne Projekt: die Aufgabenliste
@@ -34,6 +35,34 @@ export function TaskQuickAdd() {
           {TASK_STATUS_ORDER.map((s) => (
             <option key={s} value={s}>
               {TASK_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </Select>
+      </label>
+
+      <label>
+        <span className="mb-1 block text-xs font-medium text-slate-600">Priorität</span>
+        <Select name="priority" defaultValue="NORMAL" className="w-auto">
+          {PRIORITY_ORDER.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_LABEL[p]}
+            </option>
+          ))}
+        </Select>
+      </label>
+
+      <label>
+        <span className="mb-1 block text-xs font-medium text-slate-600">Fällig</span>
+        <Input type="date" name="dueDate" className="w-auto" />
+      </label>
+
+      <label>
+        <span className="mb-1 block text-xs font-medium text-slate-600">Wiederholung</span>
+        <Select name="recurrence" defaultValue="" className="w-auto">
+          <option value="">einmalig</option>
+          {RECURRENCES.map((r) => (
+            <option key={r} value={r}>
+              {RECURRENCE_LABEL[r]}
             </option>
           ))}
         </Select>
