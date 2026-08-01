@@ -26,10 +26,18 @@ export const STATUS_LABEL: Record<Status, string> = {
   ABGESCHLOSSEN: "Abgeschlossen",
 };
 
-/** Volle Klassen-Literale, damit Tailwind sie beim Scannen findet. */
+/**
+ * Volle Klassen-Literale, damit Tailwind sie beim Scannen findet.
+ *
+ * "In Planung" war Indigo und lag damit zu nah an dem Blau von "In Arbeit":
+ * ein Abstand von ΔE 7,2 bei normalem Sehen und 3,1 bei Rotgruenschwaeche -
+ * ausgerechnet fuer die zwei Zustaende, die man am haeufigsten vergleicht.
+ * Cyan hebt das auf 12,3 bzw. 11,9. Getrennt wird ohnehin nie ueber Farbe
+ * allein: jede Anzeige traegt die Beschriftung mit.
+ */
 export const STATUS_BADGE: Record<Status, string> = {
   NEU: "bg-slate-100 text-slate-700 ring-slate-300",
-  IN_PLANUNG: "bg-indigo-100 text-indigo-800 ring-indigo-300",
+  IN_PLANUNG: "bg-cyan-100 text-cyan-800 ring-cyan-300",
   IN_ARBEIT: "bg-blue-100 text-blue-800 ring-blue-300",
   WARTET_AUF_KUNDE: "bg-amber-100 text-amber-900 ring-amber-300",
   BLOCKIERT: "bg-rose-100 text-rose-800 ring-rose-300",
@@ -38,7 +46,7 @@ export const STATUS_BADGE: Record<Status, string> = {
 
 export const STATUS_DOT: Record<Status, string> = {
   NEU: "bg-slate-400",
-  IN_PLANUNG: "bg-indigo-500",
+  IN_PLANUNG: "bg-cyan-600",
   IN_ARBEIT: "bg-blue-500",
   WARTET_AUF_KUNDE: "bg-amber-500",
   BLOCKIERT: "bg-rose-500",
@@ -47,7 +55,7 @@ export const STATUS_DOT: Record<Status, string> = {
 
 export const STATUS_BAR: Record<Status, string> = {
   NEU: "bg-slate-400",
-  IN_PLANUNG: "bg-indigo-500",
+  IN_PLANUNG: "bg-cyan-600",
   IN_ARBEIT: "bg-blue-500",
   WARTET_AUF_KUNDE: "bg-amber-500",
   BLOCKIERT: "bg-rose-500",

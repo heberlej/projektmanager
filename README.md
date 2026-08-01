@@ -242,6 +242,12 @@ Im Taskpane gibt es zwei Wege:
 Dieselbe Mail zweimal anzuheften erzeugt kein Duplikat: `internetMessageId` ist
 eindeutig, ein erneutes Anheften aktualisiert nur die Zuordnung.
 
+Eine über den Reiter *Aufgabe* angelegte Aufgabe **merkt sich ihre Mail**. In der
+Aufgabenliste des Projekts steht der Betreff darunter und führt per Deeplink
+zurück in Outlook – die Antwort auf „warum gibt es diese Aufgabe eigentlich".
+Die Verknüpfung ist `SetNull`, nicht `Cascade`: verschwindet die Mail, bleibt
+die Aufgabe stehen und verliert nur den Rückweg.
+
 In der Mail-Liste eines Projekts führt der Betreff über einen Deeplink zurück in
 die Originalmail in Outlook.
 
@@ -578,7 +584,10 @@ Compose-Stack starten.
 ## Entscheidungen, die im Code sichtbar sind
 
 - **Vorlagen werden kopiert, nicht referenziert.** Beim Anlegen wandern Phasen
-  und Aufgaben als Kopie ins Projekt. Ändert sich die Vorlage später, bleiben
+  und Aufgaben als Kopie ins Projekt. Dasselbe gilt für die einzelne Phase, die
+  sich über *Einzelne Phase … → Einsetzen* mitten im Projekt anhängen lässt –
+  der häufige Fall, wenn die Nacharbeit dazukommt, aber nicht noch einmal die
+  ganze Vorlage. Ändert sich die Vorlage später, bleiben
   laufende Projekte unberührt. `Project.templateId` ist nur ein Herkunftsvermerk.
 - **Fortschritt wird gerechnet, nicht gespeichert** – aus erledigten zu gesamten
   Aufgaben. Ein eigenes Feld könnte auseinanderlaufen. Aus demselben Grund

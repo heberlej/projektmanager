@@ -110,6 +110,46 @@ export async function applyTemplateToProject(projectId: string, templateId: stri
   });
 }
 
+/**
+ * Haengt eine einzelne Phase einer Vorlage an ein laufendes Projekt an.
+ *
+ * Der haeufige Fall mitten im Projekt: die Nacharbeit kommt dazu, aber nicht
+ * noch einmal die ganze Vorlage. Kopiert wird auch hier, nicht referenziert -
+ * gleiche Ueberlegung wie bei copyTemplateInto.
+ */
+export async function applyTemplatePhaseToProject(projectId: string, templatePhaseId: string) {
+  await prisma.$transaction(async (tx) => {
+    const vorlagenphase = await tx.templatePhase.findUnique({
+      where: { id: templatePhaseId },
+      include: { tasks: { orderBy: { position: "asc" } } },
+    });
+    if (!vorlagenphase) return;
+
+    const vorhanden = await tx.phase.aggregate({
+      where: { projectId },
+      _max: { position: true },
+    });
+
+    await tx.phase.create({
+      data: {
+        projectId,
+        title: vorlagenphase.title,
+        position: (vorhanden._max.position ?? 0) + 1,
+        tasks: {
+          create: vorlagenphase.tasks.map((task, index) => ({
+            projectId,
+            title: task.title,
+            notes: task.notes,
+            position: index + 1,
+          })),
+        },
+      },
+    });
+
+    await tx.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+  });
+}
+
 /** Statuswechsel inklusive Protokolleintrag. */
 export async function changeProjectStatus(projectId: string, to: Status) {
   const current = await prisma.project.findUnique({
@@ -337,6 +377,8 @@ export type TaskCreateData = {
   plannedEnd?: Date | null;
   dueDate?: Date | null;
   recurrence?: Recurrence | null;
+  /** Herkunft: die Mail, aus der die Aufgabe entstanden ist. */
+  mailLinkId?: string | null;
 };
 
 /**
@@ -364,6 +406,7 @@ export async function createTask(data: TaskCreateData) {
         plannedEnd: data.plannedEnd ?? null,
         dueDate: data.dueDate ?? null,
         recurrence,
+        mailLinkId: data.mailLinkId ?? null,
         position: await nextTaskPosition(tx, status),
       },
     });
@@ -747,11 +790,17 @@ export async function getProject(id: string) {
       template: { select: { id: true, name: true } },
       phases: {
         orderBy: { position: "asc" },
-        include: { tasks: { orderBy: { position: "asc" } } },
+        include: {
+          tasks: {
+            orderBy: { position: "asc" },
+            include: { mailLink: { select: { subject: true, deeplinkUrl: true } } },
+          },
+        },
       },
       tasks: {
         where: { phaseId: null },
         orderBy: { position: "asc" },
+        include: { mailLink: { select: { subject: true, deeplinkUrl: true } } },
       },
       notes: { orderBy: [{ pinned: "desc" }, { createdAt: "desc" }] },
       attachments: { orderBy: { createdAt: "desc" } },
@@ -826,10 +875,19 @@ async function listProjectsSlim(
   take: number,
   orderBy: Prisma.ProjectOrderByWithRelationInput,
 ) {
-  return prisma.project.findMany({
+  const projects = await prisma.project.findMany({
     where,
     take,
     orderBy,
     include: { tags: { include: { tag: true } } },
   });
+
+  // Fortschritt in einer zweiten Abfrage statt per include: gezaehlt wird ueber
+  // Phasen- und phasenlose Aufgaben zusammen, das kann Prisma nicht mitliefern.
+  const progress = await taskProgress(projects.map((p) => p.id));
+
+  return projects.map((project) => ({
+    ...project,
+    progress: progress.get(project.id) ?? { total: 0, done: 0 },
+  }));
 }

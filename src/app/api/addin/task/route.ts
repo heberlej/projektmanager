@@ -29,20 +29,25 @@ export async function POST(request: Request) {
     }
   }
 
+  // Erst die Mail anheften, dann die Aufgabe anlegen: nur so kann die Aufgabe
+  // ihre Herkunft mitbekommen und spaeter zurueck nach Outlook verweisen.
+  // Eine Mail haengt immer an einem Projekt - ohne Projekt gibt es nichts zu verknuepfen.
+  let mailLinkId: string | null = null;
+  if (parsed.data.mail && projectId) {
+    const link = await linkMail(projectId, parsed.data.mail);
+    await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+    mailLinkId = link.id;
+  }
+
   const task = await createTask({
     title: parsed.data.title,
     projectId,
     notes: parsed.data.notes || null,
     status: parsed.data.status,
+    mailLinkId,
   });
 
-  // Eine Mail haengt immer an einem Projekt - ohne Projekt gibt es nichts zu verknuepfen.
-  let mailLinked = false;
-  if (parsed.data.mail && projectId) {
-    await linkMail(projectId, parsed.data.mail);
-    await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
-    mailLinked = true;
-  }
+  const mailLinked = mailLinkId !== null;
 
   if (projectId) revalidatePath(`/projekte/${projectId}`);
   revalidatePath("/aufgaben");

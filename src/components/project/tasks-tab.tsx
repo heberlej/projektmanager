@@ -2,6 +2,7 @@ import {
   addPhaseAction,
   addTaskAction,
   applyTemplateAction,
+  applyTemplatePhaseAction,
   deletePhaseAction,
   deleteTaskAction,
   setTaskStatusAction,
@@ -69,12 +70,18 @@ function TerminEditor({
   );
 }
 
+export type VorlagenAuswahl = {
+  id: string;
+  name: string;
+  phases: { id: string; title: string; taskCount: number }[];
+};
+
 export function TasksTab({
   project,
   templates,
 }: {
   project: ProjectDetail;
-  templates: { id: string; name: string }[];
+  templates: VorlagenAuswahl[];
 }) {
   const hasContent = project.phases.length > 0 || project.tasks.length > 0;
 
@@ -99,6 +106,27 @@ export function TasksTab({
             </Select>
             <Button type="submit" variant="secondary">
               Anhängen
+            </Button>
+          </form>
+
+          {/* Mitten im Projekt will man selten die ganze Vorlage, sondern einen
+              Block daraus - etwa die Nacharbeit. */}
+          <form action={applyTemplatePhaseAction} className="flex items-center gap-2">
+            <input type="hidden" name="projectId" value={project.id} />
+            <Select name="templatePhaseId" defaultValue="" className="h-9 w-auto" required>
+              <option value="">Einzelne Phase …</option>
+              {templates.map((template) => (
+                <optgroup key={template.id} label={template.name}>
+                  {template.phases.map((phase) => (
+                    <option key={phase.id} value={phase.id}>
+                      {phase.title} ({phase.taskCount})
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+            <Button type="submit" variant="secondary">
+              Einsetzen
             </Button>
           </form>
         </CardBody>
@@ -176,7 +204,13 @@ function TaskRow({
   task,
 }: {
   projectId: string;
-  task: { id: string; title: string; status: TaskStatus; notes: string | null } & Termin;
+  task: {
+    id: string;
+    title: string;
+    status: TaskStatus;
+    notes: string | null;
+    mailLink?: { subject: string; deeplinkUrl: string | null } | null;
+  } & Termin;
 }) {
   const erledigt = task.status === TASK_DONE;
   return (
@@ -204,6 +238,26 @@ function TaskRow({
           {task.title}
         </p>
         {task.notes ? <p className="mt-0.5 text-xs text-slate-500">{task.notes}</p> : null}
+        {/* Herkunft der Aufgabe: beantwortet spaeter "warum gibt es die
+            eigentlich" mit einem Sprung zurueck in die Mail. */}
+        {task.mailLink ? (
+          <p className="mt-0.5 truncate text-xs text-slate-500">
+            <span aria-hidden>✉ </span>
+            {task.mailLink.deeplinkUrl ? (
+              <a
+                href={task.mailLink.deeplinkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-700 hover:underline"
+                title="In Outlook öffnen"
+              >
+                {task.mailLink.subject}
+              </a>
+            ) : (
+              task.mailLink.subject
+            )}
+          </p>
+        ) : null}
         {task.plannedStart && task.plannedEnd ? (
           <p className="mt-1">
             <TerminChip kind="AUFGABE" start={task.plannedStart} end={task.plannedEnd} />

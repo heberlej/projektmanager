@@ -11,6 +11,8 @@ import {
   STATUS_LABEL,
   PRIORITY_BADGE,
   PRIORITY_LABEL,
+  STATUS_BAR,
+  STATUS_DOT,
   STATUS_ORDER,
   TASK_STATUS_BADGE,
   TASK_STATUS_LABEL,
@@ -19,7 +21,7 @@ import {
   type TaskStatus,
 } from "@/lib/status";
 import { Card, CardBody, CardHeader, CardTitle, EmptyState } from "@/components/ui";
-import { StatusBadge, TagChip } from "@/components/bits";
+import { ProgressBar, StatusBadge, TagChip } from "@/components/bits";
 import { entryHref, formatRange, KIND_CHIP, KIND_LABEL } from "@/lib/planning";
 import { cn, daysSince, relativeDays } from "@/lib/utils";
 
@@ -41,13 +43,33 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {total} aktive {total === 1 ? "Projekt" : "Projekte"}
-            {archivedCount > 0 ? ` · ${archivedCount} im Archiv` : ""}
-          </p>
+      {/* Kopf: die eine Zahl gross, der Rest daneben. Wer hier landet, will
+          zuerst wissen, wie viel gerade laeuft. */}
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-end gap-4">
+          <div>
+            <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Aktive Projekte
+            </p>
+            <p className="mt-1 flex items-baseline gap-2">
+              <span className="text-4xl leading-none font-semibold tabular-nums text-slate-900">
+                {total}
+              </span>
+              {offenGesamt > 0 ? (
+                <span className="text-sm text-slate-500">
+                  {offenGesamt} offene {offenGesamt === 1 ? "Aufgabe" : "Aufgaben"}
+                </span>
+              ) : null}
+            </p>
+          </div>
+          {archivedCount > 0 ? (
+            <Link
+              href="/projekte?archiviert=1"
+              className="mb-1 text-xs text-slate-500 hover:underline"
+            >
+              {archivedCount} im Archiv
+            </Link>
+          ) : null}
         </div>
         <Link
           href="/projekte/neu"
@@ -57,9 +79,12 @@ export default async function DashboardPage() {
         </Link>
       </header>
 
-      <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <section
+        aria-label="Projekte nach Status"
+        className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+      >
         {STATUS_ORDER.map((status) => (
-          <StatusTile key={status} status={status} count={byStatus[status]} />
+          <StatusTile key={status} status={status} count={byStatus[status]} gesamt={total} />
         ))}
       </section>
 
@@ -206,6 +231,7 @@ export default async function DashboardPage() {
                   customer={project.customer}
                   status={project.status as Status}
                   tags={project.tags.map((t) => t.tag)}
+                  progress={project.progress}
                   right={relativeDays(project.updatedAt)}
                 />
               ))
@@ -229,6 +255,7 @@ export default async function DashboardPage() {
                   customer={project.customer}
                   status={project.status as Status}
                   tags={project.tags.map((t) => t.tag)}
+                  progress={project.progress}
                   right={`${daysSince(project.updatedAt)} Tage`}
                   warn
                 />
@@ -241,19 +268,42 @@ export default async function DashboardPage() {
   );
 }
 
-function StatusTile({ status, count }: { status: Status; count: number }) {
+/**
+ * Kachel je Status. Der Punkt traegt die Farbe, die Beschriftung den Sinn -
+ * Status wird nie allein ueber Farbe unterschieden. Der Balken darunter zeigt
+ * den Anteil an allen aktiven Projekten; eine Groesse, eine Farbe.
+ */
+function StatusTile({
+  status,
+  count,
+  gesamt,
+}: {
+  status: Status;
+  count: number;
+  gesamt: number;
+}) {
+  const anteil = gesamt === 0 ? 0 : Math.round((count / gesamt) * 100);
   return (
     <Link
       href={`/projekte?status=${status}`}
       className={cn(
-        "rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md",
-        count === 0 && "opacity-60",
+        "group rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition-colors hover:border-slate-300 hover:bg-slate-50",
+        count === 0 && "opacity-55",
       )}
     >
-      <div className="text-2xl font-semibold tabular-nums text-slate-900">{count}</div>
-      <div className={cn("mt-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset", STATUS_BADGE[status])}>
-        {STATUS_LABEL[status]}
-      </div>
+      <span className="flex items-center gap-1.5">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOT[status])} aria-hidden />
+        <span className="truncate text-xs font-medium text-slate-600">{STATUS_LABEL[status]}</span>
+      </span>
+      <span className="mt-1 block text-2xl leading-none font-semibold tabular-nums text-slate-900">
+        {count}
+      </span>
+      <span className="mt-2 block h-1 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+        <span
+          className={cn("block h-full rounded-full", STATUS_BAR[status])}
+          style={{ width: `${anteil}%` }}
+        />
+      </span>
     </Link>
   );
 }
@@ -264,6 +314,7 @@ function ProjectRow({
   customer,
   status,
   tags,
+  progress,
   right,
   warn,
 }: {
@@ -272,27 +323,40 @@ function ProjectRow({
   customer: string;
   status: Status;
   tags: { id: string; name: string; color: string }[];
+  progress: { done: number; total: number };
   right: string;
   warn?: boolean;
 }) {
   return (
     <Link
       href={`/projekte/${id}`}
-      className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-slate-50"
+      className="block rounded-md px-2 py-2 transition-colors hover:bg-slate-50"
     >
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-slate-900">{name}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1">
-          <span className="text-xs text-slate-500">{customer}</span>
-          <StatusBadge status={status} />
-          {tags.map((tag) => (
-            <TagChip key={tag.id} name={tag.name} color={tag.color} />
-          ))}
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-slate-900">{name}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            <span className="text-xs text-slate-500">{customer}</span>
+            <StatusBadge status={status} />
+            {tags.map((tag) => (
+              <TagChip key={tag.id} name={tag.name} color={tag.color} />
+            ))}
+          </div>
         </div>
+        <span
+          className={cn(
+            "shrink-0 text-xs tabular-nums",
+            warn ? "text-rose-700" : "text-slate-500",
+          )}
+        >
+          {right}
+        </span>
       </div>
-      <span className={cn("shrink-0 text-xs tabular-nums", warn ? "text-rose-600" : "text-slate-500")}>
-        {right}
-      </span>
+      {/* Fortschritt als duenner Balken: eine Groesse, eine Farbe, keine
+          Zahlenwueste. Ohne Aufgaben bleibt die Zeile ruhig. */}
+      {progress.total > 0 ? (
+        <ProgressBar className="mt-1.5" done={progress.done} total={progress.total} />
+      ) : null}
     </Link>
   );
 }

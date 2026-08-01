@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { prisma } from "@/lib/db";
-import { applyTemplateToProject, linkMail, listProjects, suche } from "@/lib/service";
+import {
+  applyTemplatePhaseToProject,
+  applyTemplateToProject,
+  createTask,
+  linkMail,
+  listProjects,
+  suche,
+} from "@/lib/service";
 import { datenbankLeeren, projektAnlegen } from "./hilfen";
 
 beforeEach(datenbankLeeren);
@@ -56,6 +63,43 @@ describe("Vorlagen", () => {
     ]);
   });
 
+  test("eine einzelne Phase laesst sich nachtraeglich einsetzen", async () => {
+    const vorlage = await vorlageAnlegen();
+    const projekt = await projektAnlegen();
+    const nacharbeit = await prisma.templatePhase.findFirstOrThrow({
+      where: { templateId: vorlage.id, title: "Durchfuehrung" },
+    });
+
+    await applyTemplatePhaseToProject(projekt.id, nacharbeit.id);
+
+    const phasen = await prisma.phase.findMany({
+      where: { projectId: projekt.id },
+      include: { tasks: true },
+    });
+
+    // Nur die eine Phase, nicht die ganze Vorlage.
+    expect(phasen).toHaveLength(1);
+    expect(phasen[0].title).toBe("Durchfuehrung");
+    expect(phasen[0].tasks).toHaveLength(2);
+  });
+
+  test("die eingesetzte Phase haengt sich hinten an, ohne Bestehendes anzufassen", async () => {
+    const vorlage = await vorlageAnlegen();
+    const projekt = await projektAnlegen();
+    await prisma.phase.create({ data: { projectId: projekt.id, title: "Eigene Phase", position: 1 } });
+    const vorlagenphase = await prisma.templatePhase.findFirstOrThrow({
+      where: { templateId: vorlage.id, title: "Aufnahme" },
+    });
+
+    await applyTemplatePhaseToProject(projekt.id, vorlagenphase.id);
+
+    const phasen = await prisma.phase.findMany({
+      where: { projectId: projekt.id },
+      orderBy: { position: "asc" },
+    });
+    expect(phasen.map((p) => p.title)).toEqual(["Eigene Phase", "Aufnahme"]);
+  });
+
   test("der Fortschritt zaehlt aus den Aufgaben", async () => {
     const vorlage = await vorlageAnlegen();
     const projekt = await projektAnlegen();
@@ -99,6 +143,52 @@ describe("Mails anheften", () => {
     const links = await prisma.mailLink.findMany();
     expect(links).toHaveLength(1);
     expect(links[0].projectId).toBe(zwei.id);
+  });
+});
+
+describe("Aufgabe kennt ihre Mail", () => {
+  test("die Herkunft bleibt abrufbar", async () => {
+    const projekt = await projektAnlegen();
+    const link = await linkMail(projekt.id, {
+      internetMessageId: "<herkunft@example.org>",
+      subject: "Bitte Termin bestaetigen",
+      fromAddress: "kunde@example.org",
+      receivedAt: new Date(),
+    });
+
+    const aufgabe = await createTask({
+      title: "Termin bestaetigen",
+      projectId: projekt.id,
+      mailLinkId: link.id,
+    });
+
+    const geladen = await prisma.task.findUniqueOrThrow({
+      where: { id: aufgabe.id },
+      include: { mailLink: true },
+    });
+    expect(geladen.mailLink?.subject).toBe("Bitte Termin bestaetigen");
+  });
+
+  test("faellt die Mail weg, bleibt die Aufgabe stehen", async () => {
+    const projekt = await projektAnlegen();
+    const link = await linkMail(projekt.id, {
+      internetMessageId: "<weg@example.org>",
+      subject: "Wird geloescht",
+      fromAddress: "a@b.c",
+      receivedAt: new Date(),
+    });
+    const aufgabe = await createTask({
+      title: "Ueberlebt",
+      projectId: projekt.id,
+      mailLinkId: link.id,
+    });
+
+    await prisma.mailLink.delete({ where: { id: link.id } });
+
+    // SetNull, nicht Cascade: die Aufgabe verliert nur den Rueckweg.
+    const geladen = await prisma.task.findUnique({ where: { id: aufgabe.id } });
+    expect(geladen).not.toBeNull();
+    expect(geladen?.mailLinkId).toBeNull();
   });
 });
 

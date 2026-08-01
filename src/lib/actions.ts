@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "./db";
 import {
   addAttachment,
+  applyTemplatePhaseToProject,
   applyTemplateToProject,
   changeProjectStatus,
   changeTaskStatus,
@@ -474,6 +475,15 @@ export async function applyTemplateAction(formData: FormData): Promise<void> {
   const templateId = String(formData.get("templateId") ?? "");
   if (!projectId || !templateId) return;
   await applyTemplateToProject(projectId, templateId);
+  refreshProject(projectId);
+}
+
+/** Einzelne Phase einer Vorlage anhaengen - fuer Nacharbeit mitten im Projekt. */
+export async function applyTemplatePhaseAction(formData: FormData): Promise<void> {
+  const projectId = String(formData.get("projectId") ?? "");
+  const templatePhaseId = String(formData.get("templatePhaseId") ?? "");
+  if (!projectId || !templatePhaseId) return;
+  await applyTemplatePhaseToProject(projectId, templatePhaseId);
   refreshProject(projectId);
 }
 

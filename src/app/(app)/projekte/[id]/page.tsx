@@ -115,7 +115,18 @@ export default async function ProjectPage({
       </div>
 
       {tab === "aufgaben" ? (
-        <TasksTab project={project} templates={templates.map((t) => ({ id: t.id, name: t.name }))} />
+        <TasksTab
+          project={project}
+          templates={templates.map((t) => ({
+            id: t.id,
+            name: t.name,
+            phases: t.phases.map((p) => ({
+              id: p.id,
+              title: p.title,
+              taskCount: p.tasks.length,
+            })),
+          }))}
+        />
       ) : null}
       {tab === "notizen" ? <NotesTab project={project} /> : null}
       {tab === "dateien" ? <FilesTab project={project} /> : null}

@@ -136,6 +136,11 @@ model Task {
   /// Nur fuer freie Aufgaben. Beim Abhaken entsteht der Nachfolger, siehe
   /// src/lib/recurrence.ts - es gibt keinen Hintergrunddienst, der das taete.
   recurrence Recurrence?
+  /// Herkunft: die Mail, aus der die Aufgabe entstanden ist. SetNull statt
+  /// Cascade - loest sich die Mail vom Projekt, bleibt die Aufgabe bestehen,
+  /// sie verliert nur den Rueckweg nach Outlook.
+  mailLinkId String?
+  mailLink   MailLink? @relation(fields: [mailLinkId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -216,6 +221,9 @@ model MailLink {
   receivedAt        DateTime
   deeplinkUrl       String?
   linkedAt          DateTime @default(now())
+
+  /// Aufgaben, die aus dieser Mail entstanden sind.
+  tasks             Task[]
 
   @@index([projectId, receivedAt])
 }
