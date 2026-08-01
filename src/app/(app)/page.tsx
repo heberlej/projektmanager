@@ -107,7 +107,7 @@ export default async function DashboardPage() {
               </span>
             ))}
             <Link href="/aufgaben" className="ml-1 text-xs font-medium text-blue-700 hover:underline">
-              Board
+              Alle Aufgaben
             </Link>
           </div>
         </CardHeader>
@@ -115,7 +115,7 @@ export default async function DashboardPage() {
           {offeneAufgaben.length === 0 ? (
             <EmptyState
               title="Nichts offen"
-              hint="Neue Aufgaben legst du auf dem Board an. Was zu einem Projekt gehört, steht im Projekt."
+              hint="Neue Aufgaben legst du unter Aufgaben an. Was zu einem Projekt gehört, steht im Projekt."
             />
           ) : (
             offeneAufgaben.map((task) => (

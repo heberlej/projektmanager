@@ -300,8 +300,12 @@ Verknüpfung setzen oder `PM_BASE_URL` als Umgebungsvariable.
 
 ## Aufgabenboard
 
-Unter **Aufgaben** liegt eine **eigenständige Liste**, in vier Spalten: *Offen ·
-In Arbeit · Wartet · Erledigt*. Ziehen setzt den Status, wie beim Projektboard.
+Unter **Aufgaben** liegt eine **eigenständige Liste**. Sie öffnet als **Tabelle**
+– alle Angaben nebeneinander, Status per Auswahl. Wer lieber schiebt, schaltet
+auf *Board* um: vier Spalten *Offen · In Arbeit · Wartet · Erledigt*, Ziehen
+setzt den Status. Dieselbe Umschaltung gibt es bei den Projekten, auch dort ist
+die Tabelle die Vorgabe. Die Wahl steht in der Adresse (`?ansicht=board`), ein
+Lesezeichen hält sie also fest.
 
 Der Punkt dieser Liste ist die Trennung: **sie hat mit den Projekten nichts zu
 tun.** Was an einem Projekt hängt, lebt in dessen Aufgabenliste und taucht hier

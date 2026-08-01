@@ -37,7 +37,8 @@ export function ProjectFilters({
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
-  const view = params.get("ansicht") === "tabelle" ? "tabelle" : "board";
+  // Muss zur Vorgabe der Seite passen: Tabelle ohne Parameter, Board explizit.
+  const view = params.get("ansicht") === "board" ? "board" : "tabelle";
   const showArchived = params.get("archiv") === "1";
 
   return (
@@ -95,11 +96,11 @@ export function ProjectFilters({
       </Select>
 
       <div className="flex overflow-hidden rounded-md ring-1 ring-slate-300">
-        {(["board", "tabelle"] as const).map((value) => (
+        {(["tabelle", "board"] as const).map((value) => (
           <button
             key={value}
             type="button"
-            onClick={() => update("ansicht", value === "board" ? "" : value)}
+            onClick={() => update("ansicht", value === "tabelle" ? "" : value)}
             className={cn(
               "h-9 px-3 text-sm",
               view === value ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",

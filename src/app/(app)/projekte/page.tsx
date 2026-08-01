@@ -23,7 +23,8 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Sea
   const tag = one(params.tag);
   const statusParam = one(params.status);
   const archived = one(params.archiv) === "1";
-  const view = one(params.ansicht) === "tabelle" ? "tabelle" : "board";
+  // Tabelle ist die Vorgabe; das Board kommt ueber ?ansicht=board dazu.
+  const view = one(params.ansicht) === "board" ? "board" : "tabelle";
 
   const [projects, customers, tags] = await Promise.all([
     listProjects({

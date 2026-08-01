@@ -2,8 +2,10 @@ import Link from "next/link";
 import { listBoardTasks, taskCountsByStatus } from "@/lib/service";
 import { TASK_STATUS_LABEL, TASK_STATUS_ORDER, type TaskStatus } from "@/lib/status";
 import { TaskBoard, type BoardTaskData } from "@/components/task-board";
+import { TaskTable } from "@/components/task-table";
 import { TaskQuickAdd } from "@/components/task-quick-add";
 import { Card, CardBody, EmptyState } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,8 @@ function one(value: string | string[] | undefined): string {
 export default async function TasksPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const q = one(params.q).trim();
+  // Tabelle ist die Vorgabe; das Board kommt ueber ?ansicht=board dazu.
+  const ansicht = one(params.ansicht) === "board" ? "board" : "tabelle";
 
   const [tasks, counts] = await Promise.all([
     listBoardTasks({ q: q || undefined }),
@@ -73,15 +77,42 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
             >
               Filtern
             </button>
+            {/* Die Ansicht haengt am Formular, damit der Suchbegriff beim
+                Umschalten stehen bleibt. */}
+            <input type="hidden" name="ansicht" value={ansicht} />
             {q ? (
               <Link
-                href="/aufgaben"
+                href={ansicht === "board" ? "/aufgaben?ansicht=board" : "/aufgaben"}
                 className="flex h-9 items-center px-2 text-sm text-slate-600 hover:underline"
               >
                 zurücksetzen
               </Link>
             ) : null}
           </form>
+
+          <div className="ml-auto flex overflow-hidden rounded-md ring-1 ring-slate-300">
+            {(["tabelle", "board"] as const).map((wert) => {
+              const ziel = new URLSearchParams();
+              if (q) ziel.set("q", q);
+              if (wert === "board") ziel.set("ansicht", "board");
+              const href = ziel.size > 0 ? `/aufgaben?${ziel}` : "/aufgaben";
+              return (
+                <Link
+                  key={wert}
+                  href={href}
+                  aria-current={ansicht === wert ? "page" : undefined}
+                  className={cn(
+                    "flex h-9 items-center px-3 text-sm",
+                    ansicht === wert
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-700 hover:bg-slate-50",
+                  )}
+                >
+                  {wert === "tabelle" ? "Tabelle" : "Board"}
+                </Link>
+              );
+            })}
+          </div>
         </CardBody>
       </Card>
 
@@ -94,16 +125,19 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
               : "Lege oben eine an. Aufgaben, die zu einem Projekt gehören, stehen im Projekt."
           }
         />
-      ) : (
+      ) : ansicht === "board" ? (
         <TaskBoard tasks={karten} />
+      ) : (
+        <TaskTable tasks={karten} />
       )}
 
       <p className="mt-3 text-xs text-slate-500">
-        Spalten: {TASK_STATUS_ORDER.map((s) => TASK_STATUS_LABEL[s]).join(" · ")}. Ziehen setzt den
-        Status; „Erledigt" ist der Status, kein zusätzliches Häkchen. Diese Liste steht für sich –
-        Aufgaben aus Projekten erscheinen hier nicht, sie stehen im jeweiligen Projekt. Sortiert
-        wird nach Fälligkeit, dann Priorität. Eine wiederkehrende Aufgabe legt ihren Nachfolger an,
-        sobald du sie abhakst.
+        {ansicht === "board"
+          ? `Spalten: ${TASK_STATUS_ORDER.map((s) => TASK_STATUS_LABEL[s]).join(" · ")}. Ziehen setzt den Status. `
+          : "Sortiert nach Fälligkeit, dann Priorität. "}
+        „Erledigt" ist der Status, kein zusätzliches Häkchen. Diese Liste steht für sich – Aufgaben
+        aus Projekten erscheinen hier nicht, sie stehen im jeweiligen Projekt. Eine wiederkehrende
+        Aufgabe legt ihren Nachfolger an, sobald du sie abhakst.
       </p>
     </div>
   );
