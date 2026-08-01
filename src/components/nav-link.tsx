@@ -20,7 +20,9 @@ export function NavLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        // Kapselform wie in der neuen Systemgestaltung; die aktive Pille sitzt
+        // als deckende Flaeche auf dem Glas, nicht als zweite Glasschicht.
+        "flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors",
         active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-200/60",
       )}
     >

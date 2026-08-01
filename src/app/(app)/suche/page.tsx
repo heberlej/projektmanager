@@ -50,7 +50,7 @@ export default async function SuchePage({ searchParams }: { searchParams: Search
             </label>
             <button
               type="submit"
-              className="h-9 rounded-md bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
+              className="h-9 rounded-full bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
             >
               Suchen
             </button>

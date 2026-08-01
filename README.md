@@ -426,6 +426,32 @@ setzt `TZ` in der `.env`.
 
 ---
 
+## Glasmaterial
+
+Die Bedienebene benutzt ein Material nach Apples *Liquid Glass*: Seitenleiste,
+die schwebende Leiste auf schmalen Geräten, die klebenden Seitenköpfe und die
+Kopfzeile der Tabellen. Drei Regeln aus Apples Vorgabe halten das im Rahmen:
+
+1. **Glas liegt nur auf der Bedienebene.** Karten, Tabellen und Formulare
+   bleiben deckend – Inhalt muss lesbar sein, nicht schweben.
+2. **Kein Glas auf Glas.** Wo zwei Ebenen aufeinandertreffen, bekommt nur die
+   obere das Material; die aktive Pille in der Navigation ist deckend.
+3. **Sparsam.** Sichtbar wird der Effekt ohnehin nur dort, wo tatsächlich etwas
+   darunter durchläuft – deshalb sind alle Träger klebend oder schwebend.
+
+Was Glas als Glas lesbar macht, ist nicht der Weichzeichner, sondern die helle
+Kante oben (`inset 0 1px 0`). Der Schatten ist nur Beiwerk.
+
+**Barrierefreiheit.** `prefers-reduced-transparency: reduce` schaltet auf
+deckende Flächen um – ohne Weichzeichner, nicht bloß mit mehr Deckkraft. Bei
+`prefers-contrast: more` trägt der Rand statt des Lichts. Kontrolliert ist der
+Kontrast in beiden Schemata über alle Listen: keine Beanstandung.
+
+Knöpfe sind Kapseln, ebenso die Umschalter zwischen Tabelle und Board. Das ist
+die auffälligste Anleihe – und die einzige, die ohne Material auskommt.
+
+---
+
 ## Dunkles Farbschema
 
 Unten in der Navigation steht ein Schalter, der im Kreis zwischen **System**,

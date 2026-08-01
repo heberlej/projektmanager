@@ -89,7 +89,10 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Sea
 
   return (
     <div className="mx-auto max-w-[100rem]">
-      <header className="mb-4 flex items-end justify-between gap-4">
+      {/* Klebende Werkzeugleiste: der Inhalt laeuft darunter weg, genau dort
+          gehoert das Material hin. -mx/-px gleicht die Polsterung des Rahmens
+          aus, damit die Leiste die volle Breite nimmt. */}
+      <header className="glas-kante sticky top-0 z-20 -mx-4 mb-4 flex items-end justify-between gap-4 px-4 py-3 md:-mx-8 md:px-8">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
             {archived ? "Archiv" : "Projekte"}
@@ -100,7 +103,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Sea
         </div>
         <Link
           href="/projekte/neu"
-          className="flex h-9 items-center rounded-md bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
+          className="flex h-9 items-center rounded-full bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
         >
           Neues Projekt
         </Link>

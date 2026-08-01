@@ -83,7 +83,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
 
   return (
     <div className="mx-auto max-w-[100rem]">
-      <header className="mb-4">
+      <header className="glas-kante sticky top-0 z-20 -mx-4 mb-4 px-4 py-3 md:-mx-8 md:px-8">
         <h1 className="text-xl font-semibold text-slate-900">Aufgaben</h1>
         <p className="mt-0.5 text-sm text-slate-500">
           {offen} offen · {counts.ERLEDIGT} erledigt
@@ -130,7 +130,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
             ) : null}
           </form>
 
-          <div className="ml-auto flex overflow-hidden rounded-md ring-1 ring-slate-300">
+          <div className="ml-auto flex overflow-hidden rounded-full p-0.5 ring-1 ring-slate-300">
             {(["tabelle", "board"] as const).map((wert) => {
               const ziel = new URLSearchParams();
               if (q) ziel.set("q", q);
@@ -146,10 +146,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
                   href={href}
                   aria-current={ansicht === wert ? "page" : undefined}
                   className={cn(
-                    "flex h-9 items-center px-3 text-sm",
+                    "flex h-8 items-center rounded-full px-3 text-sm transition-colors",
                     ansicht === wert
                       ? "bg-slate-900 text-white"
-                      : "bg-white text-slate-700 hover:bg-slate-50",
+                      : "text-slate-700 hover:bg-slate-100",
                   )}
                 >
                   {wert === "tabelle" ? "Tabelle" : "Board"}

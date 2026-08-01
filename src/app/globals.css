@@ -178,6 +178,74 @@
   }
 }
 
+/*
+ * --- Glasmaterial (nach Apples Liquid Glass) --------------------------------
+ *
+ * Die Regeln, an die sich das hier haelt:
+ *
+ * 1. Glas liegt auf der *Bedienebene* - Navigation, Werkzeugleisten, die
+ *    Kopfzeile einer Tabelle. Niemals auf dem Inhalt selbst. Karten, Tabellen
+ *    und Formulare bleiben deckend, sonst leidet die Lesbarkeit.
+ * 2. Kein Glas auf Glas. Wo zwei Ebenen aufeinandertreffen, bekommt nur die
+ *    obere das Material.
+ * 3. Sparsam. Ueberall Glas heisst nirgends Tiefe.
+ *
+ * Sichtbar wird es nur dort, wo tatsaechlich etwas darunter durchlaeuft -
+ * deshalb sind die Traeger hier klebend oder schwebend.
+ */
+@layer components {
+  .glas {
+    background-color: color-mix(in srgb, var(--color-white) 72%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid color-mix(in srgb, #ffffff 55%, transparent);
+    /* Der helle Saum oben ist das, was Glas als Glas lesbar macht - eine
+       Lichtkante, kein Schlagschatten. */
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #ffffff 65%, transparent),
+      0 8px 24px -12px color-mix(in srgb, #0f172a 35%, transparent);
+  }
+
+  .dark .glas {
+    background-color: color-mix(in srgb, var(--color-white) 62%, transparent);
+    border-color: color-mix(in srgb, #ffffff 10%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent),
+      0 8px 24px -12px #000000;
+  }
+
+  /* Weichere Variante fuer Kanten, unter denen Inhalt wegscrollt. */
+  .glas-kante {
+    background-color: color-mix(in srgb, var(--color-slate-50) 78%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    backdrop-filter: blur(14px) saturate(160%);
+  }
+
+  /*
+   * Apples "Transparenz reduzieren" hat eine Entsprechung im Web. Wer sie
+   * gesetzt hat, bekommt deckende Flaechen - und zwar ohne Weichzeichner,
+   * nicht bloss mit mehr Deckkraft.
+   */
+  @media (prefers-reduced-transparency: reduce) {
+    .glas,
+    .glas-kante {
+      background-color: var(--color-white);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+    .glas-kante {
+      background-color: var(--color-slate-50);
+    }
+  }
+
+  /* Bei erhoehtem Kontrastbedarf traegt der Rand, nicht das Licht. */
+  @media (prefers-contrast: more) {
+    .glas {
+      border-color: var(--color-slate-400);
+    }
+  }
+}
+
 @layer components {
   .prose-note {
     @apply text-sm leading-relaxed text-slate-700;

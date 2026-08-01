@@ -45,7 +45,7 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-6xl">
       {/* Kopf: die eine Zahl gross, der Rest daneben. Wer hier landet, will
           zuerst wissen, wie viel gerade laeuft. */}
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <header className="glas-kante sticky top-0 z-20 -mx-4 mb-6 flex flex-wrap items-end justify-between gap-4 px-4 py-3 md:-mx-8 md:px-8">
         <div className="flex items-end gap-4">
           <div>
             <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">
@@ -73,7 +73,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/projekte/neu"
-          className="flex h-9 items-center rounded-md bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
+          className="flex h-9 items-center rounded-full bg-akzent px-3.5 text-sm font-medium text-akzent-auf hover:bg-akzent-stark"
         >
           Neues Projekt
         </Link>

@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils";
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
 
+// Kapselform: die auffaelligste Anleihe bei der neuen Systemgestaltung, und die
+// einzige, die ohne Material auskommt - Knoepfe bleiben deckend.
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
   // Akzent-Token statt bg-blue-600: bleibt im dunklen Schema Blau (globals.css).

@@ -95,15 +95,15 @@ export function ProjectFilters({
         ))}
       </Select>
 
-      <div className="flex overflow-hidden rounded-md ring-1 ring-slate-300">
+      <div className="flex h-9 items-center gap-0.5 rounded-full p-0.5 ring-1 ring-slate-300">
         {(["tabelle", "board"] as const).map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => update("ansicht", value === "tabelle" ? "" : value)}
             className={cn(
-              "h-9 px-3 text-sm",
-              view === value ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50",
+              "h-8 rounded-full px-3 text-sm transition-colors",
+              view === value ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100",
             )}
           >
             {value === "board" ? "Board" : "Tabelle"}

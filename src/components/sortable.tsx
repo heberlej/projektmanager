@@ -95,18 +95,23 @@ export function SortHeader<K extends string>({
   );
 }
 
-/** Gemeinsamer Rahmen fuer die Tabellen: eine Flaeche, ein Rand, ein Radius. */
+/**
+ * Gemeinsamer Rahmen fuer die Tabellen: eine deckende Flaeche.
+ *
+ * Bewusst kein Glas - Tabellen sind Inhalt, und Inhalt bleibt lesbar. Das
+ * Material liegt nur auf der Kopfzeile, unter der die Zeilen wegscrollen.
+ */
 export function TabellenRahmen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">{children}</div>
     </div>
   );
 }
 
-/** Kopfzeile, die beim Scrollen stehen bleibt. */
+/** Kopfzeile, die beim Scrollen stehen bleibt - die Kante, an der Inhalt verschwindet. */
 export const KOPFZEILE =
-  "sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-left text-xs tracking-wide text-slate-500 uppercase backdrop-blur";
+  "glas-kante sticky top-0 z-10 border-b border-slate-200 text-left text-xs tracking-wide text-slate-500 uppercase";
 
 /** Zeile mit Trennlinie und ruhigem Hover. */
 export const ZEILE =
