@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pm
+          POSTGRES_PASSWORD: pm
+          POSTGRES_DB: pm_test
+        ports:
+          - 5432:5432
+        # Ohne den Healthcheck starten die Schritte, bevor Postgres bereit ist.
+        options: >-
+          --health-cmd "pg_isready -U pm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://pm:pm@localhost:5432/pm_test?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm ci faellt auf npm install zurueck: die Lockdatei stammt von arm64,
+      # dieselbe Ueberlegung wie im Dockerfile.
+      - name: Abhaengigkeiten
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Prisma-Client erzeugen
+        run: npx prisma generate
+
+      - name: Migrationen einspielen
+        run: npx prisma migrate deploy
+
+      - name: Typen pruefen
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npx vitest run
+
+      - name: Build
+        run: npx next build

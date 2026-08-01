@@ -321,12 +321,57 @@ Zwei Dinge unterscheiden Aufgaben von Projekten:
 Gefiltert wird nur nach Suchbegriff, über Titel und Notiz. Ein Projektfilter
 wäre hier gegenstandslos.
 
+Jede Aufgabe hat **Priorität** und optional eine **Fälligkeit**. Sortiert wird
+nach Fälligkeit, dann Priorität – was heute fällig ist, ist dringender als was
+irgendwann wichtig ist; Undatiertes sortiert sich dahinter ein. Überfälliges
+steht rot auf der Karte. Die Fälligkeit ist bewusst etwas anderes als der
+geplante Termin: der Termin sagt „dann wird gearbeitet", die Fälligkeit „bis
+dann fertig".
+
+### Wiederkehrende Aufgaben
+
+Eine freie Aufgabe kann sich täglich bis jährlich wiederholen. Der Nachfolger
+entsteht **beim Abhaken**, nicht durch einen Hintergrunddienst – es läuft nichts,
+wenn niemand da ist, und für Wochen mit ausgeschaltetem Rechner stapeln sich
+keine Karteileichen. Der Preis: wer nie abhakt, bekommt auch keinen Nachfolger.
+Die erledigte Aufgabe bleibt als Beleg stehen.
+
+Grundlage der neuen Fälligkeit ist die alte, damit eine wöchentliche Aufgabe
+ihren Wochentag behält, auch wenn spät abgehakt wird. Liegt das Ergebnis noch in
+der Vergangenheit, wird im selben Raster weitergezählt, bis es in der Zukunft
+liegt – sonst erzeugte das Aufräumen alter Rückstände sofort den nächsten.
+Projektaufgaben können sich nicht wiederholen; eine Aufgabe, die sich selbst
+nachbildet, würde die Phasenstruktur unterlaufen.
+
 Im Outlook-Add-in gibt es dafür den Reiter **Aufgabe**: Betreff als
 Titelvorschlag, Projekt optional, Status wählbar, und ein Haken *Mail an das
 Projekt anheften* (vorausgewählt). Ohne Projekt kann die Mail nicht angeheftet
 werden – die Antwort sagt das dann auch. Die Projektauswahl entscheidet, wo die
 Aufgabe landet: mit Projekt in dessen Liste, ohne Projekt in der eigenständigen
 unter *Aufgaben*.
+
+---
+
+## Suche
+
+Unter **Suche** läuft eine Volltextsuche über Projekte, Notizen und Aufgaben –
+Postgres-eigen, mit dem Wörterbuch `german`. „Migration" findet damit auch
+„Migrationen", und die Rangfolge kommt aus der Datenbank statt aus einer
+selbstgebauten Heuristik. Mehrere Wörter werden verundet, `"in Anführungszeichen"`
+sucht die Wortfolge, `-wort` schließt aus (`websearch_to_tsquery`).
+
+Die `tsvector`-Spalten sind **generiert**, Postgres hält sie also selbst aktuell;
+es gibt keinen Trigger und keinen zweiten Ort, der vergessen werden könnte. Sie
+stehen nur in der Migration, nicht im Prisma-Schema – abgefragt wird über
+`$queryRaw`.
+
+Archiviertes ist absichtlich dabei und als solches gekennzeichnet: „Archivieren
+statt Löschen" wäre sonst die Hälfte wert.
+
+Die Fundstellen im Auszug werden **nicht** von `ts_headline` ausgezeichnet.
+Dessen `<b>` käme mit dem übrigen HTML aus den Daten mit – eine Notiz mit
+`<script>` landete ausführbar in der Seite. Stattdessen setzt Postgres eigene
+Marken, der Text wird escaped, und erst danach werden die Marken zu `<b>`.
 
 ---
 
@@ -403,11 +448,25 @@ später übernimmt – deshalb steht am `<html>` auch `suppressHydrationWarning`
 Legt `db-<zeitstempel>.sql.gz` und `uploads-<zeitstempel>.tar.gz` in `./backups`
 ab und räumt Sicherungen älter als 30 Tage weg (`BACKUP_KEEP` überschreibt das).
 
-Täglich per Cron in der WSL:
+**`BACKUP_MIRROR` in der `.env` setzen.** Ohne das liegt die Sicherung in
+derselben WSL-Distribution wie die Volumes – auf derselben Platte, hinter
+derselben `wsl --unregister`. Sie schützt dann gegen Fehlbedienung, nicht gegen
+Verlust. Sinnvoll ist ein Pfad unter `/mnt/c` in einem Ordner, der vom Rechner
+weg synchronisiert wird:
+
+```bash
+BACKUP_MIRROR="/mnt/c/Users/DEINNAME/OneDrive/projektmanager-backups"
+```
+
+Ist das Ziel nicht erreichbar, bricht das Skript ab, statt still nur lokal zu
+sichern. Die Kopie altert nach denselben Regeln wie das Original.
+
+Per Cron in der WSL, zweimal täglich – ein ausgeschalteter Rechner kostet so
+nicht gleich einen ganzen Tag:
 
 ```bash
 crontab -e
-# 0 20 * * * cd /pfad/zum/projektmanager && ./scripts/backup.sh >> backups/backup.log 2>&1
+# 0 12,20 * * * cd /pfad/zum/projektmanager && ./scripts/backup.sh >> backups/backup.log 2>&1
 ```
 
 Zurückspielen:
@@ -415,6 +474,51 @@ Zurückspielen:
 ```bash
 ./scripts/restore.sh backups/db-20260730-200000.sql.gz backups/uploads-20260730-200000.tar.gz
 ```
+
+`restore.sh` legt vorher selbst einen Dump nach `backups/pre-restore-<zeitstempel>.sql.gz`.
+Das ist kein Zierrat: der Dump enthält `--clean`, das Einspielen wirft also
+alles weg, was seit der Sicherung entstanden ist. Ohne den Schnappschuss ließe
+sich hinterher nicht einmal feststellen, was gefehlt hat.
+
+### Wachhund
+
+```bash
+./scripts/watchdog.sh
+```
+
+Startet Container neu, die Docker als `unhealthy` meldet. Der Umweg ist nötig,
+weil Docker den `HEALTHCHECK` zwar auswertet, aber keine Konsequenz daraus
+zieht: `restart: unless-stopped` greift nur, wenn der Prozess *endet*. Ein
+hängender Node-Prozess läuft weiter und der Proxy liefert 502, bis jemand
+hinschaut. Per Cron alle fünf Minuten:
+
+```bash
+# */5 * * * * cd /pfad/zum/projektmanager && ./scripts/watchdog.sh >> backups/watchdog.log 2>&1
+```
+
+Der Healthcheck der App prüft bis zur Datenbank durch (`/api/health`) – ein
+Prozess, der nur noch HTML ausliefert, aber keine Verbindung mehr bekommt, ist
+für diese App nutzlos.
+
+---
+
+## Tests
+
+```bash
+./scripts/test.sh
+```
+
+Läuft in einem Node-Container am Compose-Netz, gegen eine eigene Datenbank
+`pm_test` neben der produktiven – die Tests leeren Tabellen, die Trennung ist
+also nicht optional. Node muss dafür nicht auf dem Host installiert sein.
+
+Geprüft wird die Fachlogik, nicht die Oberfläche: die Trennung von freien und
+Projektaufgaben, das Kopieren der Vorlagen, der gerechnete Fortschritt, die
+Idempotenz beim Anheften, das Kaskadenlöschen, die Wiederholungsrechnung und
+dass die Volltextsuche HTML aus den Daten entschärft.
+
+Dieselben Schritte laufen bei jedem Push über GitHub Actions
+(`.github/workflows/ci.yml`), dort zusätzlich `tsc --noEmit` und der Build.
 
 ---
 
