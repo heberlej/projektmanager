@@ -189,8 +189,9 @@ function TaskRow({
           aria-label={erledigt ? "Als offen markieren" : "Als erledigt markieren"}
           className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] leading-none ${
             erledigt
-              ? // Akzent-Token: das Haekchen bleibt in beiden Schemata hell.
-                "border-emerald-500 bg-emerald-500 text-akzent-auf"
+              ? // Eigener Token statt emerald-500, siehe globals.css: sonst ist
+                // das Haekchen weder hell noch dunkel gut lesbar.
+                "border-erledigt bg-erledigt text-akzent-auf"
               : "border-slate-300 bg-white hover:border-slate-400"
           }`}
         >

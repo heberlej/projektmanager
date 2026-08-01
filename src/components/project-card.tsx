@@ -57,7 +57,12 @@ export function ProjectCard({
 
       <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
         <span>{open > 0 ? `${open} offen` : "nichts offen"}</span>
-        <span className="text-slate-300">·</span>
+        {/* Reine Zierde zwischen zwei Angaben - aria-hidden, damit der
+            Screenreader nicht "Punkt" vorliest, und slate-400 statt -300, weil
+            es sonst in beiden Schemata unter der Sichtbarkeitsschwelle liegt. */}
+        <span aria-hidden className="text-slate-400">
+          ·
+        </span>
         <span>{relativeDays(project.updatedAt)}</span>
         <span className="ml-auto flex items-center gap-2">
           <CountHint icon="✉" count={project.counts.mailLinks} title="angeheftete Mails" />

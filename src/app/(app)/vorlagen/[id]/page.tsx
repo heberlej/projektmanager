@@ -59,7 +59,7 @@ export default async function TemplateDetailPage({
             <CardBody className="space-y-1">
               {phase.tasks.map((task) => (
                 <div key={task.id} className="group flex items-start gap-2 rounded-md px-1 py-1 hover:bg-slate-50">
-                  <span aria-hidden className="pt-0.5 text-xs text-slate-300">
+                  <span aria-hidden className="pt-0.5 text-xs text-slate-400">
                     ☐
                   </span>
                   <div className="min-w-0 flex-1">

@@ -20,6 +20,14 @@
   --color-akzent: #2563eb;
   --color-akzent-stark: #1d4ed8;
   --color-akzent-auf: #ffffff;
+
+  /*
+   * Gefuelltes Kaestchen fuer erledigte Aufgaben. Nicht bg-emerald-500: weiss
+   * darauf kommt nur auf 2,5:1 und faellt selbst als Grafik durch. Die dunklere
+   * Stufe schafft 5,5:1 - und weil es ein eigener Token ist, spiegelt er nicht
+   * mit und bleibt im dunklen Schema derselbe Ton.
+   */
+  --color-erledigt: #047857;
 }
 
 /*

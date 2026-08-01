@@ -25,6 +25,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavLink href="/vorlagen" icon="▤">
             Vorlagen
           </NavLink>
+          <NavLink href="/suche" icon="⌕">
+            Suche
+          </NavLink>
         </nav>
         <div className="mt-6 px-3">
           <Link
