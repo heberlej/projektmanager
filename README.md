@@ -426,6 +426,35 @@ setzt `TZ` in der `.env`.
 
 ---
 
+## Gestaltung nach Apples Vorbild
+
+Die Oberfläche folgt der Systemgestaltung von Apple – nicht als Nachbau
+einzelner Fenster, sondern über die Größen, an denen es hängt:
+
+- **Farben nach Bedeutung, nicht nach Nummer.** Apple staffelt Flächen
+  (`systemBackground` → `secondary` → `tertiary`), Schrift (`label` →
+  `secondaryLabel` → `tertiaryLabel`) und Trenner. Diese Staffelung liegt auf
+  der vorhandenen Slate-Reihe, deshalb erbt sie jede bestehende Klasse. Hell ist
+  die Seite grau und die Karte weiß, dunkel andersherum.
+- **Ein Blau.** `#0071E3` – das von apple.com, nicht `systemBlue #007AFF`: auf
+  systemBlue kommt weiße Schrift nur auf 3,7:1. Verweise tragen dasselbe Blau,
+  kein zweites.
+- **Schrift.** `-apple-system` holt auf einem Mac die San Francisco, sonst
+  greift die Systemschrift. Eine Schriftdatei mitzuliefern wäre der falsche
+  Preis: die App läuft ohne Netz, und SF ist außerhalb von Apples Plattformen
+  nicht lizenziert. Übernommen ist der Satz: offenere Zeilen, und je größer die
+  Schrift, desto enger die Laufweite.
+- **Formen.** Knöpfe und Umschalter sind Kapseln, Karten haben große Radien.
+  Wo der Browser `corner-shape: squircle` kennt, werden daraus Superellipsen –
+  Apples Ecken sind keine Kreisbögen.
+
+**Eine Abweichung ist Absicht.** Apples `secondaryLabel` und `tertiaryLabel`
+liegen unter 4,5:1; Apple nimmt das hin, hier sind die Textstufen eine Spur
+dunkler. Die Flächen sind es nicht. Nachgemessen über sechs Seiten in beiden
+Schemata: 1498 Textelemente, keine Beanstandung.
+
+---
+
 ## Glasmaterial
 
 Die Bedienebene benutzt ein Material nach Apples *Liquid Glass*: Seitenleiste,

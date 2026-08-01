@@ -9,16 +9,23 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /*
+   * Schrift: auf einem Mac holt -apple-system die San Francisco, sonst greift
+   * die jeweilige Systemschrift. Eine Schriftdatei mitzuliefern waere der
+   * falsche Preis - die App laeuft ohne Netz, und SF ist ausserhalb von Apples
+   * Plattformen ohnehin nicht lizenziert.
+   */
   --font-sans:
-    "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
+    "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
 
   /*
-   * Akzent fuer gefuellte Knoepfe. Eigene Token statt bg-blue-600, weil die
-   * gespiegelte Palette (unten) aus Blau-600 sonst eine helle Flaeche machen
-   * wuerde - ein gefuellter Knopf soll in beiden Schemata gleich aussehen.
+   * Akzent fuer gefuellte Knoepfe. #0071E3 ist das Blau von apple.com, nicht
+   * das systemBlue #007AFF: auf systemBlue kommt weisse Schrift nur auf 3,7:1.
+   * Apple nimmt das in Kauf, hier bleibt es bei 4,6:1.
    */
-  --color-akzent: #2563eb;
-  --color-akzent-stark: #1d4ed8;
+  --color-akzent: #0071e3;
+  --color-akzent-stark: #0058b9;
   --color-akzent-auf: #ffffff;
 
   /*
@@ -28,6 +35,41 @@
    * mit und bleibt im dunklen Schema derselbe Ton.
    */
   --color-erledigt: #047857;
+}
+
+/*
+ * --- Neutrale Stufen nach Apples Systemgrau ---------------------------------
+ *
+ * Apple staffelt nicht "Grau 1 bis 9", sondern nach Bedeutung: Flaechen
+ * (systemBackground, secondary, tertiary), Schrift (label, secondaryLabel,
+ * tertiaryLabel) und Trenner (separator). Diese Staffelung liegt hier auf der
+ * vorhandenen Slate-Reihe, damit alle bestehenden Klassen sie erben.
+ *
+ * Eine Abweichung ist Absicht: Apples secondaryLabel und tertiaryLabel liegen
+ * unter 4,5:1 - Apple nimmt das hin, wir nicht. Die Textstufen sind deshalb
+ * eine Spur dunkler als das Original, die Flaechen sind es nicht.
+ */
+:root {
+  /* Flaechen: Seite grau, Karte weiss - Apples "grouped background". */
+  --color-slate-50: #f2f2f7;
+  --color-white: #ffffff;
+  --color-slate-100: #ececeF;
+  /* Trenner und Raender: systemGray5 / systemGray4 */
+  --color-slate-200: #e5e5ea;
+  --color-slate-300: #d1d1d6;
+  /* Schrift, von hell nach dunkel. Die 400 traegt die leisesten Hinweise und
+     muss auch auf der grauen Seitenflaeche noch ueber 4,5:1 liegen - Apples
+     tertiaryLabel waere hier deutlich zu blass. */
+  --color-slate-400: #68686d;
+  --color-slate-500: #636366;
+  --color-slate-600: #48484a;
+  --color-slate-700: #3a3a3c;
+  --color-slate-800: #2c2c2e;
+  --color-slate-900: #1c1c1e;
+  --color-slate-950: #000000;
+
+  /* Verweise tragen dasselbe Blau wie der Akzent, nicht ein zweites. */
+  --color-blue-700: #0071e3;
 }
 
 /*
@@ -49,21 +91,25 @@
   /* Damit Auswahllisten, Datumsfelder und Scrollbalken mitziehen. */
   color-scheme: dark;
 
-  /* Neutrale Flaechen: Karte muss sich vom Seitengrund abheben. */
-  --color-white: #141d31;
-  --color-slate-50: #0d1526;
-  --color-slate-100: #1c2942;
-  --color-slate-200: #26344f;
-  --color-slate-300: #34455f;
-  /* Etwas heller als die reine Spiegelung ergaebe: Platzhalter und Hinweise
-     liegen damit ueber 4.5:1 gegen die Kartenflaeche. */
-  --color-slate-400: #8d9bb2;
-  --color-slate-500: #97a6bd;
-  --color-slate-600: #aebbcf;
-  --color-slate-700: #c6d1e0;
-  --color-slate-800: #dbe3ee;
-  --color-slate-900: #eaf0f8;
-  --color-slate-950: #f7fafd;
+  /*
+   * Dunkel nach Apples Vorbild: die Seite ist der tiefste Ton, die Karte hebt
+   * sich als naechste Stufe ab (systemBackground / secondarySystemBackground).
+   * Nicht ganz Schwarz - auf einem Bildschirm ohne OLED wirkt das hart, und
+   * macOS macht es selbst nicht.
+   */
+  --color-slate-50: #0f0f11;
+  --color-white: #1c1c1e;
+  --color-slate-100: #2c2c2e;
+  --color-slate-200: #38383a;
+  --color-slate-300: #48484a;
+  /* Schrift: systemGray aufwaerts, alle ueber 4,5:1 gegen die Karte. */
+  --color-slate-400: #98989d;
+  --color-slate-500: #aeaeb2;
+  --color-slate-600: #c7c7cc;
+  --color-slate-700: #d1d1d6;
+  --color-slate-800: #e5e5ea;
+  --color-slate-900: #f2f2f7;
+  --color-slate-950: #ffffff;
 
   --color-blue-50: #172554;
   --color-blue-100: #1e3a8a;
@@ -170,11 +216,47 @@
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
     font-family: var(--font-sans);
+    /* Apples Textsatz laeuft etwas offener als der Browserstandard. */
+    line-height: 1.47059;
+    letter-spacing: -0.0025em;
   }
 
-  /* Fokus durchgaengig sichtbar - die App wird viel per Tastatur bedient. */
+  /*
+   * Grosse Groessen ruecken bei Apple enger zusammen ("optical sizing"): je
+   * groesser die Schrift, desto negativer die Laufweite. Kleine Groessen
+   * bleiben unangetastet, sonst leidet die Lesbarkeit.
+   */
+  h1,
+  .text-4xl,
+  .text-2xl {
+    letter-spacing: -0.022em;
+  }
+  h2,
+  .text-xl {
+    letter-spacing: -0.017em;
+  }
+
+  /*
+   * Fokus als weicher Ring in der Akzentfarbe statt als harte Kontur - das
+   * Muster der Systemsteuerelemente.
+   */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-blue-600;
+    outline: 2px solid var(--color-akzent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /*
+   * Apples Ecken sind keine Kreisbogen, sondern Superellipsen. Wo der Browser
+   * das kann, bekommen Flaechen die weichere Form; sonst bleibt es beim
+   * gewohnten Radius. Kapseln sind ausgenommen - dort waere es wirkungslos.
+   */
+  @supports (corner-shape: squircle) {
+    .rounded-lg,
+    .rounded-xl,
+    .rounded-2xl {
+      corner-shape: squircle;
+    }
   }
 }
 

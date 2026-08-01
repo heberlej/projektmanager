@@ -44,8 +44,10 @@ export function Button({
   );
 }
 
+// Eingabefelder bleiben Rechtecke mit weichem Radius - Kapseln waeren hier
+// falsch, sie gehoeren zu Knoepfen. Der Fokus faerbt den Rand, kein Kasten.
 const FIELD =
-  "w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-akzent focus:outline-none";
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(FIELD, className)} {...props} />;
@@ -92,7 +94,12 @@ export function Field({
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("rounded-lg border border-slate-200 bg-white shadow-sm", className)}
+      // Groesserer Radius und ein sehr weicher Schatten - Karten liegen auf der
+      // Flaeche, sie stehen nicht darauf.
+      className={cn(
+        "rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_-16px_rgba(0,0,0,0.25)]",
+        className,
+      )}
       {...props}
     />
   );
@@ -124,7 +131,7 @@ export function Badge({ className, ...props }: React.HTMLAttributes<HTMLSpanElem
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center">
+    <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-10 text-center">
       <p className="text-sm font-medium text-slate-600">{title}</p>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
