@@ -6,6 +6,9 @@
 # Laeuft in einem node-Container am Compose-Netz und benutzt eine eigene
 # Datenbank `pm_test` neben der produktiven. Die Tests leeren Tabellen - deshalb
 # ist die Trennung nicht optional, sondern der Grund fuer dieses Skript.
+#
+# Dieselben Schritte in derselben Reihenfolge wie die CI, inklusive `tsc`:
+# vitest prueft keine Typen, ein Fehler faellt sonst erst auf GitHub auf.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -36,4 +39,8 @@ docker run --rm -i \
   -e "DATABASE_URL=postgresql://$PGUSER:$PGPASS@db:5432/$TESTDB?schema=public" \
   -e CI=true \
   node:22-bookworm-slim \
-  sh -c "npm ci --no-audit --no-fund || npm install --no-audit --no-fund && npx prisma migrate deploy && npx vitest run $*"
+  sh -c "npm ci --no-audit --no-fund || npm install --no-audit --no-fund \
+    && npx prisma generate \
+    && npx prisma migrate deploy \
+    && npx tsc --noEmit \
+    && npx vitest run $*"

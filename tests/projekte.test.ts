@@ -71,13 +71,13 @@ describe("Vorlagen", () => {
 });
 
 describe("Mails anheften", () => {
+  // restId und deeplinkUrl sind optional, nicht nullable - das Add-in laesst sie
+  // schlicht weg, wenn Office.js nichts liefert.
   const mail = {
     internetMessageId: "<abc@example.org>",
     subject: "Angebot",
     fromAddress: "kunde@example.org",
     receivedAt: new Date("2026-08-01T10:00:00Z"),
-    restId: null,
-    deeplinkUrl: null,
   };
 
   test("dieselbe Mail zweimal anheften erzeugt kein Duplikat", async () => {
@@ -113,8 +113,6 @@ describe("Loeschen eines Projekts", () => {
       subject: "Betreff",
       fromAddress: "a@b.c",
       receivedAt: new Date(),
-      restId: null,
-      deeplinkUrl: null,
     });
 
     await prisma.project.delete({ where: { id: projekt.id } });
