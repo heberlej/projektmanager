@@ -217,9 +217,34 @@ export type BoardTask = {
   recurrence: Recurrence | null;
 };
 
+export const FAELLIG_FILTER = ["alle", "ueberfaellig", "heute", "woche"] as const;
+export type FaelligFilter = (typeof FAELLIG_FILTER)[number];
+
 export type TaskFilter = {
   q?: string;
+  faellig?: FaelligFilter;
 };
+
+/**
+ * Grenzen fuer den Faelligkeitsfilter. Gerechnet wird auf Tagesgrenzen in
+ * Ortszeit - "heute faellig" endet um Mitternacht, nicht 24 Stunden nach jetzt.
+ */
+function faelligkeitsGrenze(filter: FaelligFilter): Prisma.TaskWhereInput {
+  if (filter === "alle") return {};
+  const jetzt = new Date();
+  const heuteEnde = new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate(), 23, 59, 59, 999);
+
+  if (filter === "ueberfaellig") {
+    const heuteAnfang = new Date(jetzt.getFullYear(), jetzt.getMonth(), jetzt.getDate());
+    return { dueDate: { lt: heuteAnfang }, status: { not: TASK_DONE } };
+  }
+  if (filter === "heute") {
+    return { dueDate: { lte: heuteEnde }, status: { not: TASK_DONE } };
+  }
+  // woche: die naechsten sieben Tage einschliesslich heute, Rueckstand inbegriffen
+  const inSiebenTagen = new Date(heuteEnde.getTime() + 6 * 86_400_000);
+  return { dueDate: { lte: inSiebenTagen }, status: { not: TASK_DONE } };
+}
 
 /**
  * Die freien Aufgaben fuer das Board unter /aufgaben.
@@ -232,6 +257,8 @@ export type TaskFilter = {
 export async function listBoardTasks(filter: TaskFilter = {}): Promise<BoardTask[]> {
   const where: Prisma.TaskWhereInput = {
     projectId: null,
+    deletedAt: null,
+    ...faelligkeitsGrenze(filter.faellig ?? "alle"),
     ...(filter.q
       ? {
           OR: [
@@ -296,6 +323,7 @@ export async function openTasksForDashboard(limit = 8): Promise<BoardTask[]> {
     where: {
       status: { not: TASK_DONE },
       projectId: null,
+      deletedAt: null,
     },
     orderBy: [
       { dueDate: { sort: "asc", nulls: "last" } },
@@ -417,9 +445,183 @@ export async function createTask(data: TaskCreateData) {
   });
 }
 
+// --- Papierkorb -------------------------------------------------------------
+
+/** Wie lange Geloeschtes wiederherstellbar bleibt. */
+export const PAPIERKORB_TAGE = 30;
+
+export type PapierkorbArt = "AUFGABE" | "NOTIZ" | "DATEI";
+
+export type PapierkorbEintrag = {
+  art: PapierkorbArt;
+  id: string;
+  titel: string;
+  projektName: string | null;
+  projektId: string | null;
+  geloeschtAm: Date;
+};
+
+/**
+ * Loeschen heisst hier: als geloescht markieren. Erst nach PAPIERKORB_TAGE ist
+ * es wirklich fort. Projekte haben dafuer schon das Archiv - was dort
+ * verschwindet, ist ohnehin nie weg.
+ */
+export async function inDenPapierkorb(art: PapierkorbArt, id: string) {
+  const jetzt = new Date();
+  if (art === "AUFGABE") {
+    const task = await prisma.task.update({ where: { id }, data: { deletedAt: jetzt } });
+    return task.projectId;
+  }
+  if (art === "NOTIZ") {
+    const note = await prisma.note.update({ where: { id }, data: { deletedAt: jetzt } });
+    return note.projectId;
+  }
+  const datei = await prisma.attachment.update({ where: { id }, data: { deletedAt: jetzt } });
+  return datei.projectId;
+}
+
+export async function ausDemPapierkorb(art: PapierkorbArt, id: string) {
+  if (art === "AUFGABE") {
+    const task = await prisma.task.update({ where: { id }, data: { deletedAt: null } });
+    return task.projectId;
+  }
+  if (art === "NOTIZ") {
+    const note = await prisma.note.update({ where: { id }, data: { deletedAt: null } });
+    return note.projectId;
+  }
+  const datei = await prisma.attachment.update({ where: { id }, data: { deletedAt: null } });
+  return datei.projectId;
+}
+
+export async function papierkorbInhalt(): Promise<PapierkorbEintrag[]> {
+  const [tasks, notes, dateien] = await Promise.all([
+    prisma.task.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, title: true, deletedAt: true, project: { select: { id: true, name: true } } },
+    }),
+    prisma.note.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, body: true, deletedAt: true, project: { select: { id: true, name: true } } },
+    }),
+    prisma.attachment.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, filename: true, deletedAt: true, project: { select: { id: true, name: true } } },
+    }),
+  ]);
+
+  const eintraege: PapierkorbEintrag[] = [
+    ...tasks.map((t) => ({
+      art: "AUFGABE" as const,
+      id: t.id,
+      titel: t.title,
+      projektName: t.project?.name ?? null,
+      projektId: t.project?.id ?? null,
+      geloeschtAm: t.deletedAt!,
+    })),
+    ...notes.map((n) => ({
+      art: "NOTIZ" as const,
+      id: n.id,
+      titel: n.body.slice(0, 80) + (n.body.length > 80 ? " …" : ""),
+      projektName: n.project.name,
+      projektId: n.project.id,
+      geloeschtAm: n.deletedAt!,
+    })),
+    ...dateien.map((d) => ({
+      art: "DATEI" as const,
+      id: d.id,
+      titel: d.filename,
+      projektName: d.project.name,
+      projektId: d.project.id,
+      geloeschtAm: d.deletedAt!,
+    })),
+  ];
+
+  return eintraege.sort((a, b) => b.geloeschtAm.getTime() - a.geloeschtAm.getTime());
+}
+
+/**
+ * Raeumt auf, was laenger als PAPIERKORB_TAGE im Papierkorb liegt. Laeuft beim
+ * Oeffnen der Papierkorbseite - ein eigener Dienst dafuer waere ueberzogen, und
+ * ohne Aufruf schadet das Liegenbleiben niemandem.
+ *
+ * Die Dateien im Ablageordner bleiben liegen: sie haengen am Projekt, nicht am
+ * Datenbankeintrag, und ein verwaister Ordner ist harmloser als eine geloeschte
+ * Datei, die noch gebraucht wird.
+ */
+export async function papierkorbBereinigen() {
+  const grenze = new Date(Date.now() - PAPIERKORB_TAGE * 86_400_000);
+  const [aufgaben, notizen, dateien] = await Promise.all([
+    prisma.task.deleteMany({ where: { deletedAt: { lt: grenze } } }),
+    prisma.note.deleteMany({ where: { deletedAt: { lt: grenze } } }),
+    prisma.attachment.deleteMany({ where: { deletedAt: { lt: grenze } } }),
+  ]);
+  return aufgaben.count + notizen.count + dateien.count;
+}
+
+// --- Wiedervorlage ----------------------------------------------------------
+
+/** Setzt oder loescht die Wiedervorlage an einer angehefteten Mail. */
+export async function setzeWiedervorlage(mailLinkId: string, am: Date | null) {
+  const link = await prisma.mailLink.update({
+    where: { id: mailLinkId },
+    data: { followUpAt: am, followUpDoneAt: null },
+  });
+  return link.projectId;
+}
+
+/** Hakt eine Wiedervorlage ab - der Vermerk bleibt als Historie stehen. */
+export async function wiedervorlageErledigt(mailLinkId: string) {
+  const link = await prisma.mailLink.update({
+    where: { id: mailLinkId },
+    data: { followUpDoneAt: new Date() },
+  });
+  return link.projectId;
+}
+
+export type Wiedervorlage = {
+  id: string;
+  subject: string;
+  fromAddress: string;
+  deeplinkUrl: string | null;
+  followUpAt: Date;
+  projektId: string;
+  projektName: string;
+};
+
+/** Offene Wiedervorlagen, faellige zuerst. Archivierte Projekte bleiben aussen vor. */
+export async function offeneWiedervorlagen(limit = 8): Promise<Wiedervorlage[]> {
+  const rows = await prisma.mailLink.findMany({
+    where: {
+      followUpAt: { not: null },
+      followUpDoneAt: null,
+      project: { archived: false },
+    },
+    orderBy: { followUpAt: "asc" },
+    take: limit,
+    select: {
+      id: true,
+      subject: true,
+      fromAddress: true,
+      deeplinkUrl: true,
+      followUpAt: true,
+      project: { select: { id: true, name: true } },
+    },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    subject: r.subject,
+    fromAddress: r.fromAddress,
+    deeplinkUrl: r.deeplinkUrl,
+    followUpAt: r.followUpAt!,
+    projektId: r.project.id,
+    projektName: r.project.name,
+  }));
+}
+
 // --- Volltextsuche ----------------------------------------------------------
 
-export type SuchArt = "PROJEKT" | "NOTIZ" | "AUFGABE";
+export type SuchArt = "PROJEKT" | "NOTIZ" | "AUFGABE" | "MAIL" | "DATEI";
 
 /** Marken um die Fundstellen - werden erst nach dem Escapen zu <b>. */
 const TREFFER_AUF = "§§T§§";
@@ -505,6 +707,7 @@ export async function suche(begriff: string, limit = 40): Promise<SuchTreffer[]>
       FROM "Note" n
       JOIN "Project" p ON p.id = n."projectId", frage
      WHERE n.suche @@ frage.tsq
+       AND n."deletedAt" IS NULL
 
     UNION ALL
 
@@ -518,6 +721,34 @@ export async function suche(begriff: string, limit = 40): Promise<SuchTreffer[]>
       FROM "Task" t
       LEFT JOIN "Project" p ON p.id = t."projectId", frage
      WHERE t.suche @@ frage.tsq
+       AND t."deletedAt" IS NULL
+
+    UNION ALL
+
+    SELECT 'MAIL' AS art,
+           m.id,
+           m.subject AS titel,
+           ts_headline('german', concat_ws(' · ', m."fromAddress", p.name), frage.tsq, ${kopf}) AS auszug,
+           p.id AS projekt_id,
+           p.archived AS archiviert,
+           ts_rank(m.suche, frage.tsq) AS rang
+      FROM "MailLink" m
+      JOIN "Project" p ON p.id = m."projectId", frage
+     WHERE m.suche @@ frage.tsq
+
+    UNION ALL
+
+    SELECT 'DATEI' AS art,
+           a.id,
+           a.filename AS titel,
+           ts_headline('german', p.name, frage.tsq, ${kopf}) AS auszug,
+           p.id AS projekt_id,
+           p.archived AS archiviert,
+           ts_rank(a.suche, frage.tsq) AS rang
+      FROM "Attachment" a
+      JOIN "Project" p ON p.id = a."projectId", frage
+     WHERE a.suche @@ frage.tsq
+       AND a."deletedAt" IS NULL
 
      ORDER BY rang DESC, titel ASC
      LIMIT ${limit}
@@ -542,7 +773,7 @@ export async function suche(begriff: string, limit = 40): Promise<SuchTreffer[]>
 export async function taskCountsByStatus(): Promise<Record<TaskStatus, number>> {
   const rows = await prisma.task.groupBy({
     by: ["status"],
-    where: { projectId: null },
+    where: { projectId: null, deletedAt: null },
     _count: { _all: true },
   });
   const counts = Object.fromEntries(TASK_STATUS_ORDER.map((s) => [s, 0])) as Record<TaskStatus, number>;
@@ -605,6 +836,7 @@ export async function calendarEntries(from: Date, to: Date): Promise<CalendarEnt
       // Definition nicht zu einem archivierten Projekt gehoeren.
       where: {
         OR: [{ project: { archived: false } }, { projectId: null }],
+        deletedAt: null,
         ...terminiert,
         ...ueberlappt,
       },
@@ -768,7 +1000,7 @@ async function taskProgress(projectIds: string[]) {
 
   const rows = await prisma.task.groupBy({
     by: ["projectId", "status"],
-    where: { projectId: { in: projectIds } },
+    where: { projectId: { in: projectIds }, deletedAt: null },
     _count: { _all: true },
   });
 
@@ -792,18 +1024,19 @@ export async function getProject(id: string) {
         orderBy: { position: "asc" },
         include: {
           tasks: {
+            where: { deletedAt: null },
             orderBy: { position: "asc" },
             include: { mailLink: { select: { subject: true, deeplinkUrl: true } } },
           },
         },
       },
       tasks: {
-        where: { phaseId: null },
+        where: { phaseId: null, deletedAt: null },
         orderBy: { position: "asc" },
         include: { mailLink: { select: { subject: true, deeplinkUrl: true } } },
       },
-      notes: { orderBy: [{ pinned: "desc" }, { createdAt: "desc" }] },
-      attachments: { orderBy: { createdAt: "desc" } },
+      notes: { where: { deletedAt: null }, orderBy: [{ pinned: "desc" }, { createdAt: "desc" }] },
+      attachments: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
       mailLinks: { orderBy: { receivedAt: "desc" } },
       statusEvents: { orderBy: { changedAt: "desc" }, take: 20 },
     },

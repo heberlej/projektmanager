@@ -71,6 +71,21 @@ export const taskSchema = z.object({
     .transform((value) => (value ? (value as (typeof RECURRENCES)[number]) : null)),
 });
 
+/** Nur Prioritaet und Faelligkeit - fuer das Bearbeiten in der Zeile. */
+export const taskDetailsSchema = z.object({
+  priority: z.enum(PRIORITY_ORDER).default("NORMAL"),
+  dueDate: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .transform((value) => {
+      if (!value) return null;
+      const d = new Date(`${value}T12:00:00`);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }),
+});
+
 export const noteSchema = z.object({
   projectId: idSchema,
   body: requiredText(20000, "Notiz"),

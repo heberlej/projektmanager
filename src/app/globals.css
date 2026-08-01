@@ -35,6 +35,23 @@
    * mit und bleibt im dunklen Schema derselbe Ton.
    */
   --color-erledigt: #047857;
+
+  /*
+   * Statusfarben aus Apples Systempalette. Gemessen gegen die vorherige Reihe
+   * sind sie nicht nur naeher am Vorbild, sondern auch besser trennbar: Rot
+   * gegen Gruen steigt von ΔE 5,8 auf 6,8 bei Rotgruenschwaeche. Das liegt im
+   * Bereich, der mit zusaetzlicher Kennzeichnung zulaessig ist - und die
+   * Beschriftung ist bei uns immer dabei, Farbe traegt nie allein.
+   *
+   * Grau fuer "Neu" faellt beim Chroma-Test durch. Das ist Absicht: der Zustand
+   * heisst "hier ist noch nichts passiert", und genau so soll er aussehen.
+   */
+  --color-status-neu: #8e8e93;
+  --color-status-planung: #32ade6;
+  --color-status-arbeit: #007aff;
+  --color-status-wartet: #ff9500;
+  --color-status-blockiert: #ff3b30;
+  --color-status-fertig: #34c759;
 }
 
 /*
@@ -90,6 +107,14 @@
 .dark {
   /* Damit Auswahllisten, Datumsfelder und Scrollbalken mitziehen. */
   color-scheme: dark;
+
+  /* Apple fuehrt fuer das dunkle Schema eigene, etwas hellere Systemfarben. */
+  --color-status-neu: #98989d;
+  --color-status-planung: #64d2ff;
+  --color-status-arbeit: #0a84ff;
+  --color-status-wartet: #ff9f0a;
+  --color-status-blockiert: #ff453a;
+  --color-status-fertig: #30d158;
 
   /*
    * Dunkel nach Apples Vorbild: die Seite ist der tiefste Ton, die Karte hebt
@@ -380,6 +405,25 @@
   }
   .prose-note hr {
     @apply my-3 border-slate-200;
+  }
+}
+
+/*
+ * Sobald das Formular sich selbst abschickt, ist der Knopf ueberfluessig. Er
+ * steht trotzdem im Markup: ohne Skript im Browser bleibt die Zeile bedienbar.
+ */
+.auto-abschicken .nur-ohne-skript {
+  display: none;
+}
+
+/*
+ * Bewegung mit Federkennlinie statt gleichmaessig - das kurze Ueberschwingen
+ * ist der Unterschied zwischen "eingeblendet" und "angekommen".
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .feder {
+    transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+    transition-duration: 260ms;
   }
 }
 

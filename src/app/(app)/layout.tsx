@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { NavLink } from "@/components/nav-link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Sprungfenster } from "@/components/sprungfenster";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,6 +30,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </NavLink>
           <NavLink href="/suche" icon="⌕">
             Suche
+          </NavLink>
+          <NavLink href="/papierkorb" icon="⌫">
+            Papierkorb
           </NavLink>
         </nav>
         <div className="mt-6 px-3">
@@ -65,6 +69,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       <main className="min-w-0 flex-1 px-4 pt-6 pb-20 md:px-8 md:pb-8">{children}</main>
+
+      {/* Liegt ausserhalb des Inhalts: das Fenster gehoert zur Bedienebene. */}
+      <Sprungfenster />
     </div>
   );
 }

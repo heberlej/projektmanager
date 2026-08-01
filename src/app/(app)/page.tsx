@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   dashboardData,
+  offeneWiedervorlagen,
   openTasksForDashboard,
   taskCountsByStatus,
   upcomingEntries,
@@ -28,13 +29,19 @@ import { cn, daysSince, relativeDays } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [{ byStatus, recent, stale, archivedCount }, upcoming, offeneAufgaben, taskCounts] =
-    await Promise.all([
-      dashboardData(),
-      upcomingEntries(6),
-      openTasksForDashboard(8),
-      taskCountsByStatus(),
-    ]);
+  const [
+    { byStatus, recent, stale, archivedCount },
+    upcoming,
+    offeneAufgaben,
+    taskCounts,
+    wiedervorlagen,
+  ] = await Promise.all([
+    dashboardData(),
+    upcomingEntries(6),
+    openTasksForDashboard(8),
+    taskCountsByStatus(),
+    offeneWiedervorlagen(6),
+  ]);
   const total = STATUS_ORDER.reduce((n, s) => n + byStatus[s], 0);
   const offenGesamt = TASK_STATUS_ORDER.filter((s) => s !== "ERLEDIGT").reduce(
     (n, s) => n + taskCounts[s as TaskStatus],
@@ -169,6 +176,56 @@ export default async function DashboardPage() {
           )}
         </CardBody>
       </Card>
+
+      {wiedervorlagen.length > 0 ? (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>
+              Nachfassen
+              <span className="ml-2 font-normal text-slate-500">{wiedervorlagen.length}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardBody className="space-y-1.5">
+            {wiedervorlagen.map((w) => {
+              const tage = Math.round(
+                (new Date(new Date(w.followUpAt).toDateString()).getTime() -
+                  new Date(new Date().toDateString()).getTime()) /
+                  86_400_000,
+              );
+              return (
+                <Link
+                  key={w.id}
+                  href={`/projekte/${w.projektId}?reiter=mails`}
+                  className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50"
+                >
+                  <span aria-hidden>✉</span>
+                  <span className="text-sm font-medium text-slate-900">{w.subject}</span>
+                  <span className="text-xs text-slate-500">{w.projektName}</span>
+                  <span
+                    className={cn(
+                      "ml-auto shrink-0 text-xs tabular-nums",
+                      tage < 0
+                        ? "font-medium text-rose-700"
+                        : tage === 0
+                          ? "font-medium text-amber-900"
+                          : "text-slate-600",
+                    )}
+                  >
+                    {tage < 0
+                      ? `überfällig seit ${new Date(w.followUpAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}`
+                      : tage === 0
+                        ? "heute"
+                        : new Date(w.followUpAt).toLocaleDateString("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                          })}
+                  </span>
+                </Link>
+              );
+            })}
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card className="mb-4">
         <CardHeader className="flex items-center justify-between gap-3">

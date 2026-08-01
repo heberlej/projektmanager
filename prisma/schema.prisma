@@ -141,6 +141,8 @@ model Task {
   /// sie verliert nur den Rueckweg nach Outlook.
   mailLinkId String?
   mailLink   MailLink? @relation(fields: [mailLinkId], references: [id], onDelete: SetNull)
+  /// Papierkorb: gesetzt heisst geloescht, aber wiederherstellbar.
+  deletedAt  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -149,6 +151,7 @@ model Task {
   @@index([plannedStart])
   @@index([status, position])
   @@index([dueDate])
+  @@index([deletedAt])
 }
 
 model Template {
@@ -191,8 +194,11 @@ model Note {
   pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  /// Papierkorb, siehe Task.deletedAt
+  deletedAt DateTime?
 
   @@index([projectId, createdAt])
+  @@index([deletedAt])
 }
 
 model Attachment {
@@ -206,6 +212,9 @@ model Attachment {
   storagePath String
   source      AttachmentSource @default(UPLOAD)
   createdAt   DateTime         @default(now())
+  /// Papierkorb, siehe Task.deletedAt. Die Datei bleibt bis zum endgueltigen
+  /// Loeschen liegen - sonst waere Wiederherstellen eine leere Zusage.
+  deletedAt   DateTime?
 
   @@index([projectId, createdAt])
 }
@@ -221,11 +230,16 @@ model MailLink {
   receivedAt        DateTime
   deeplinkUrl       String?
   linkedAt          DateTime @default(now())
+  /// Wiedervorlage: bis wann soll nachgefasst werden. Erledigt wird sie nicht
+  /// geloescht, sondern abgehakt - der Vermerk bleibt Teil der Historie.
+  followUpAt        DateTime?
+  followUpDoneAt    DateTime?
 
   /// Aufgaben, die aus dieser Mail entstanden sind.
   tasks             Task[]
 
   @@index([projectId, receivedAt])
+  @@index([followUpAt])
 }
 
 model StatusEvent {

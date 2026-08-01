@@ -1,8 +1,33 @@
-import { unlinkMailAction } from "@/lib/actions";
-import { Card, CardBody, EmptyState } from "../ui";
+import { followUpDoneAction, setFollowUpAction, unlinkMailAction } from "@/lib/actions";
+import { Button, Card, CardBody, EmptyState, Input } from "../ui";
 import { ConfirmButton } from "../confirm-button";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import type { ProjectDetail } from "./types";
+
+/** Datum als Wert fuer <input type="date">. */
+function alsTagesWert(wert: Date | string | null): string {
+  if (!wert) return "";
+  const d = new Date(wert);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function lage(followUpAt: Date | string | null, erledigt: Date | string | null) {
+  if (!followUpAt) return null;
+  if (erledigt) return { text: "nachgefasst", klasse: "text-slate-500" };
+  const tage = Math.round(
+    (new Date(new Date(followUpAt).toDateString()).getTime() -
+      new Date(new Date().toDateString()).getTime()) /
+      86_400_000,
+  );
+  const datum = new Date(followUpAt).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+  if (tage < 0) return { text: `überfällig seit ${datum}`, klasse: "font-medium text-rose-700" };
+  if (tage === 0) return { text: "heute nachfassen", klasse: "font-medium text-amber-900" };
+  return { text: `nachfassen am ${datum}`, klasse: "text-slate-600" };
+}
 
 export function MailsTab({ project }: { project: ProjectDetail }) {
   if (project.mailLinks.length === 0) {
@@ -41,6 +66,40 @@ export function MailsTab({ project }: { project: ProjectDetail }) {
               <p className="text-xs text-slate-500">
                 {mail.fromAddress || "unbekannter Absender"} · {formatDateTime(mail.receivedAt)}
               </p>
+
+              {/* Wiedervorlage: Angebot raus, Kunde antwortet nicht - das ist
+                  die Stelle, an der das sonst untergeht. */}
+              {(() => {
+                const stand = lage(mail.followUpAt, mail.followUpDoneAt);
+                return (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    {stand ? <span className={cn("text-xs", stand.klasse)}>{stand.text}</span> : null}
+
+                    <form action={setFollowUpAction} className="flex items-center gap-1.5">
+                      <input type="hidden" name="mailLinkId" value={mail.id} />
+                      <Input
+                        type="date"
+                        name="followUpAt"
+                        defaultValue={alsTagesWert(mail.followUpAt)}
+                        aria-label={`Wiedervorlage für ${mail.subject}`}
+                        className="h-7 w-auto py-0 text-xs"
+                      />
+                      <Button type="submit" variant="ghost" size="sm">
+                        {mail.followUpAt ? "ändern" : "nachfassen"}
+                      </Button>
+                    </form>
+
+                    {mail.followUpAt && !mail.followUpDoneAt ? (
+                      <form action={followUpDoneAction}>
+                        <input type="hidden" name="mailLinkId" value={mail.id} />
+                        <Button type="submit" variant="ghost" size="sm">
+                          erledigt
+                        </Button>
+                      </form>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
             <form action={unlinkMailAction}>
               <input type="hidden" name="mailLinkId" value={mail.id} />

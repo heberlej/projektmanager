@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { listBoardTasks, taskCountsByStatus } from "@/lib/service";
+import { FAELLIG_FILTER, listBoardTasks, taskCountsByStatus, type FaelligFilter } from "@/lib/service";
 import { TASK_STATUS_LABEL, TASK_STATUS_ORDER, type TaskStatus } from "@/lib/status";
 import { TaskBoard, type BoardTaskData } from "@/components/task-board";
-import { AUFGABEN_SPALTEN, TaskTable, type AufgabenSpalte } from "@/components/task-table";
+import { TaskTable } from "@/components/task-table";
+import { AUFGABEN_SPALTEN, type AufgabenSpalte } from "@/lib/tabellen";
 import { leseSortierung } from "@/components/sortable";
 import { PRIORITY_ORDER } from "@/lib/status";
 import { TaskQuickAdd } from "@/components/task-quick-add";
@@ -23,8 +24,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
   // Tabelle ist die Vorgabe; das Board kommt ueber ?ansicht=board dazu.
   const ansicht = one(params.ansicht) === "board" ? "board" : "tabelle";
 
+  const roh = one(params.faellig);
+  const faellig: FaelligFilter = (FAELLIG_FILTER as readonly string[]).includes(roh)
+    ? (roh as FaelligFilter)
+    : "alle";
+
   const [tasks, counts] = await Promise.all([
-    listBoardTasks({ q: q || undefined }),
+    listBoardTasks({ q: q || undefined, faellig }),
     taskCountsByStatus(),
   ]);
 
@@ -120,6 +126,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
             <input type="hidden" name="ansicht" value={ansicht} />
             <input type="hidden" name="sort" value={sortierung.key} />
             <input type="hidden" name="richtung" value={sortierung.richtung} />
+            <input type="hidden" name="faellig" value={faellig} />
             {q ? (
               <Link
                 href={ansicht === "board" ? "/aufgaben?ansicht=board" : "/aufgaben"}
@@ -129,6 +136,39 @@ export default async function TasksPage({ searchParams }: { searchParams: Search
               </Link>
             ) : null}
           </form>
+
+          {/* Schnellfilter auf die Faelligkeit - seit es sie gibt, ist das die
+              Frage, mit der man morgens hereinkommt. */}
+          <div className="flex flex-wrap items-center gap-1">
+            {(
+              [
+                ["alle", "Alle"],
+                ["ueberfaellig", "Überfällig"],
+                ["heute", "Heute"],
+                ["woche", "Diese Woche"],
+              ] as const
+            ).map(([wert, beschriftung]) => {
+              const ziel = new URLSearchParams();
+              if (q) ziel.set("q", q);
+              if (ansicht === "board") ziel.set("ansicht", "board");
+              if (wert !== "alle") ziel.set("faellig", wert);
+              return (
+                <Link
+                  key={wert}
+                  href={ziel.size > 0 ? `/aufgaben?${ziel}` : "/aufgaben"}
+                  aria-current={faellig === wert ? "page" : undefined}
+                  className={cn(
+                    "flex h-8 items-center rounded-full px-3 text-xs font-medium transition-colors",
+                    faellig === wert
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 ring-1 ring-slate-300 hover:bg-slate-100",
+                  )}
+                >
+                  {beschriftung}
+                </Link>
+              );
+            })}
+          </div>
 
           <div className="ml-auto flex overflow-hidden rounded-full p-0.5 ring-1 ring-slate-300">
             {(["tabelle", "board"] as const).map((wert) => {

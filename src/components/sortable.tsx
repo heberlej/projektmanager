@@ -113,6 +113,12 @@ export function TabellenRahmen({ children }: { children: React.ReactNode }) {
 export const KOPFZEILE =
   "glas-kante sticky top-0 z-10 border-b border-slate-200 text-left text-xs tracking-wide text-slate-500 uppercase";
 
-/** Zeile mit Trennlinie und ruhigem Hover. */
+/**
+ * Zeile mit Trennlinie und ruhigem Hover.
+ *
+ * Der Trenner ist eingerueckt und beginnt an der Textkante, nicht am Rand der
+ * Flaeche - das Muster der Systemlisten. Umgesetzt ueber den Rahmen der Zellen
+ * statt der Zeile, weil nur so die erste Zelle ausgenommen werden kann.
+ */
 export const ZEILE =
-  "border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50";
+  "group transition-colors hover:bg-slate-50 [&>td]:border-b [&>td]:border-slate-100 [&>td:first-child]:border-transparent last:[&>td]:border-0";

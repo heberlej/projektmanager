@@ -11,12 +11,16 @@ const ART_LABEL: Record<SuchArt, string> = {
   PROJEKT: "Projekt",
   NOTIZ: "Notiz",
   AUFGABE: "Aufgabe",
+  MAIL: "Mail",
+  DATEI: "Datei",
 };
 
 const ART_CHIP: Record<SuchArt, string> = {
   PROJEKT: "bg-blue-100 text-blue-800 ring-blue-300",
   NOTIZ: "bg-violet-100 text-violet-800 ring-violet-300",
   AUFGABE: "bg-emerald-100 text-emerald-800 ring-emerald-300",
+  MAIL: "bg-amber-100 text-amber-900 ring-amber-300",
+  DATEI: "bg-cyan-100 text-cyan-800 ring-cyan-300",
 };
 
 export default async function SuchePage({ searchParams }: { searchParams: SearchParams }) {
@@ -31,7 +35,8 @@ export default async function SuchePage({ searchParams }: { searchParams: Search
       <header className="mb-4">
         <h1 className="text-xl font-semibold text-slate-900">Suche</h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Über Projekte, Notizen und Aufgaben – Archiviertes eingeschlossen.
+          Über Projekte, Notizen, Aufgaben, angeheftete Mails und Dateinamen –
+          Archiviertes eingeschlossen.
         </p>
       </header>
 

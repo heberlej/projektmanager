@@ -3,10 +3,20 @@ import { prisma } from "@/lib/db";
 import {
   applyTemplatePhaseToProject,
   applyTemplateToProject,
+  ausDemPapierkorb,
   createTask,
+  inDenPapierkorb,
   linkMail,
+  listBoardTasks,
   listProjects,
+  offeneWiedervorlagen,
+  papierkorbBereinigen,
+  papierkorbInhalt,
+  PAPIERKORB_TAGE,
+  setzeWiedervorlage,
   suche,
+  taskCountsByStatus,
+  wiedervorlageErledigt,
 } from "@/lib/service";
 import { datenbankLeeren, projektAnlegen } from "./hilfen";
 
@@ -189,6 +199,167 @@ describe("Aufgabe kennt ihre Mail", () => {
     const geladen = await prisma.task.findUnique({ where: { id: aufgabe.id } });
     expect(geladen).not.toBeNull();
     expect(geladen?.mailLinkId).toBeNull();
+  });
+});
+
+describe("Papierkorb", () => {
+  test("geloeschte Aufgaben verschwinden aus den Listen, bleiben aber da", async () => {
+    const aufgabe = await createTask({ title: "Erst weg, dann wieder da" });
+
+    await inDenPapierkorb("AUFGABE", aufgabe.id);
+
+    expect(await listBoardTasks()).toHaveLength(0);
+    expect((await taskCountsByStatus()).OFFEN).toBe(0);
+    // Der Datensatz existiert weiter - nur eben als geloescht markiert.
+    expect(await prisma.task.count()).toBe(1);
+
+    const inhalt = await papierkorbInhalt();
+    expect(inhalt.map((e) => e.titel)).toEqual(["Erst weg, dann wieder da"]);
+
+    await ausDemPapierkorb("AUFGABE", aufgabe.id);
+    expect(await listBoardTasks()).toHaveLength(1);
+    expect(await papierkorbInhalt()).toHaveLength(0);
+  });
+
+  test("geloeschte Notizen und Dateien tauchen im Papierkorb auf", async () => {
+    const projekt = await projektAnlegen();
+    const notiz = await prisma.note.create({ data: { projectId: projekt.id, body: "Weg damit" } });
+    const datei = await prisma.attachment.create({
+      data: {
+        projectId: projekt.id,
+        filename: "angebot.pdf",
+        mime: "application/pdf",
+        sizeBytes: 10,
+        storagePath: `${projekt.id}/angebot.pdf`,
+      },
+    });
+
+    await inDenPapierkorb("NOTIZ", notiz.id);
+    await inDenPapierkorb("DATEI", datei.id);
+
+    const inhalt = await papierkorbInhalt();
+    expect(inhalt.map((e) => e.art).sort()).toEqual(["DATEI", "NOTIZ"]);
+  });
+
+  test("geloeschte Aufgaben zaehlen nicht in den Fortschritt", async () => {
+    const vorlage = await vorlageAnlegen();
+    const projekt = await projektAnlegen();
+    await applyTemplateToProject(projekt.id, vorlage.id);
+    const eine = await prisma.task.findFirstOrThrow({ where: { projectId: projekt.id } });
+
+    await inDenPapierkorb("AUFGABE", eine.id);
+
+    const [eintrag] = await listProjects();
+    expect(eintrag.progress.total).toBe(2);
+  });
+
+  test("Bereinigen raeumt nur weg, was lange genug liegt", async () => {
+    const frisch = await createTask({ title: "Gerade geloescht" });
+    const alt = await createTask({ title: "Lange her" });
+    await inDenPapierkorb("AUFGABE", frisch.id);
+    await prisma.task.update({
+      where: { id: alt.id },
+      data: { deletedAt: new Date(Date.now() - (PAPIERKORB_TAGE + 1) * 86_400_000) },
+    });
+
+    const weg = await papierkorbBereinigen();
+
+    expect(weg).toBe(1);
+    expect(await prisma.task.count()).toBe(1);
+    expect((await papierkorbInhalt())[0].titel).toBe("Gerade geloescht");
+  });
+
+  test("die Suche uebergeht Geloeschtes", async () => {
+    const projekt = await projektAnlegen();
+    const notiz = await prisma.note.create({
+      data: { projectId: projekt.id, body: "Geheimwort Zwiebelturm" },
+    });
+
+    expect(await suche("Zwiebelturm")).toHaveLength(1);
+    await inDenPapierkorb("NOTIZ", notiz.id);
+    expect(await suche("Zwiebelturm")).toHaveLength(0);
+  });
+});
+
+describe("Wiedervorlage", () => {
+  const mailDaten = {
+    internetMessageId: "<nachfassen@example.org>",
+    subject: "Angebot Migration",
+    fromAddress: "kunde@example.org",
+    receivedAt: new Date(),
+  };
+
+  test("wird gesetzt und taucht in den offenen auf", async () => {
+    const projekt = await projektAnlegen("Projekt mit Nachfassen");
+    const link = await linkMail(projekt.id, mailDaten);
+
+    await setzeWiedervorlage(link.id, new Date("2026-08-10T12:00:00"));
+
+    const offen = await offeneWiedervorlagen();
+    expect(offen).toHaveLength(1);
+    expect(offen[0].subject).toBe("Angebot Migration");
+    expect(offen[0].projektName).toBe("Projekt mit Nachfassen");
+  });
+
+  test("abgehakt verschwindet sie aus den offenen, bleibt aber vermerkt", async () => {
+    const projekt = await projektAnlegen();
+    const link = await linkMail(projekt.id, mailDaten);
+    await setzeWiedervorlage(link.id, new Date("2026-08-10T12:00:00"));
+
+    await wiedervorlageErledigt(link.id);
+
+    expect(await offeneWiedervorlagen()).toHaveLength(0);
+    const geladen = await prisma.mailLink.findUniqueOrThrow({ where: { id: link.id } });
+    expect(geladen.followUpAt).not.toBeNull();
+    expect(geladen.followUpDoneAt).not.toBeNull();
+  });
+
+  test("archivierte Projekte tauchen nicht auf", async () => {
+    const projekt = await projektAnlegen();
+    const link = await linkMail(projekt.id, mailDaten);
+    await setzeWiedervorlage(link.id, new Date("2026-08-10T12:00:00"));
+    await prisma.project.update({ where: { id: projekt.id }, data: { archived: true } });
+
+    expect(await offeneWiedervorlagen()).toHaveLength(0);
+  });
+});
+
+describe("Suche ueber Mails und Dateien", () => {
+  test("findet den Mailbetreff und den Absender", async () => {
+    const projekt = await projektAnlegen("Irgendein Projekt", "Kunde");
+    await linkMail(projekt.id, {
+      internetMessageId: "<such@example.org>",
+      subject: "Wartungsfenster am Wochenende",
+      fromAddress: "technik@spedition-roos.de",
+      receivedAt: new Date(),
+    });
+
+    const nachBetreff = await suche("Wartungsfenster");
+    expect(nachBetreff.map((t) => t.art)).toContain("MAIL");
+
+    // Der Wortteil aus der Adresse muss greifen - danach sucht man wirklich,
+    // nicht nach der vollstaendigen Adresse.
+    const nachAbsender = await suche("roos");
+    expect(nachAbsender.map((t) => t.art)).toContain("MAIL");
+
+    const nachVollerAdresse = await suche("technik@spedition-roos.de");
+    expect(nachVollerAdresse.map((t) => t.art)).toContain("MAIL");
+  });
+
+  test("findet Dateinamen", async () => {
+    const projekt = await projektAnlegen();
+    await prisma.attachment.create({
+      data: {
+        projectId: projekt.id,
+        filename: "Migrationsplan.pdf",
+        mime: "application/pdf",
+        sizeBytes: 100,
+        storagePath: `${projekt.id}/Migrationsplan.pdf`,
+      },
+    });
+
+    const treffer = await suche("Migrationsplan");
+    expect(treffer.map((t) => t.art)).toContain("DATEI");
   });
 });
 

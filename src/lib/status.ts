@@ -44,22 +44,28 @@ export const STATUS_BADGE: Record<Status, string> = {
   ABGESCHLOSSEN: "bg-emerald-100 text-emerald-800 ring-emerald-300",
 };
 
+/**
+ * Punkt und Balken tragen Apples Systemfarben (siehe globals.css). Die Badges
+ * bleiben auf den abgestuften Tailwind-Toenen - dort traegt die Flaeche den
+ * hellen Ton und die Schrift den dunklen, das ist eine andere Aufgabe als ein
+ * gesaettigter Punkt.
+ */
 export const STATUS_DOT: Record<Status, string> = {
-  NEU: "bg-slate-400",
-  IN_PLANUNG: "bg-cyan-600",
-  IN_ARBEIT: "bg-blue-500",
-  WARTET_AUF_KUNDE: "bg-amber-500",
-  BLOCKIERT: "bg-rose-500",
-  ABGESCHLOSSEN: "bg-emerald-500",
+  NEU: "bg-status-neu",
+  IN_PLANUNG: "bg-status-planung",
+  IN_ARBEIT: "bg-status-arbeit",
+  WARTET_AUF_KUNDE: "bg-status-wartet",
+  BLOCKIERT: "bg-status-blockiert",
+  ABGESCHLOSSEN: "bg-status-fertig",
 };
 
 export const STATUS_BAR: Record<Status, string> = {
-  NEU: "bg-slate-400",
-  IN_PLANUNG: "bg-cyan-600",
-  IN_ARBEIT: "bg-blue-500",
-  WARTET_AUF_KUNDE: "bg-amber-500",
-  BLOCKIERT: "bg-rose-500",
-  ABGESCHLOSSEN: "bg-emerald-500",
+  NEU: "bg-status-neu",
+  IN_PLANUNG: "bg-status-planung",
+  IN_ARBEIT: "bg-status-arbeit",
+  WARTET_AUF_KUNDE: "bg-status-wartet",
+  BLOCKIERT: "bg-status-blockiert",
+  ABGESCHLOSSEN: "bg-status-fertig",
 };
 
 export function isStatus(value: unknown): value is Status {
@@ -94,10 +100,10 @@ export const TASK_STATUS_BADGE: Record<TaskStatus, string> = {
 };
 
 export const TASK_STATUS_DOT: Record<TaskStatus, string> = {
-  OFFEN: "bg-slate-400",
-  IN_ARBEIT: "bg-blue-500",
-  WARTET: "bg-amber-500",
-  ERLEDIGT: "bg-emerald-500",
+  OFFEN: "bg-status-neu",
+  IN_ARBEIT: "bg-status-arbeit",
+  WARTET: "bg-status-wartet",
+  ERLEDIGT: "bg-status-fertig",
 };
 
 export function isTaskStatus(value: unknown): value is TaskStatus {

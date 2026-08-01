@@ -4,8 +4,7 @@ import type { ProjectCardData } from "./project-card";
 import { cn, formatDate, relativeDays } from "@/lib/utils";
 import { KOPFZEILE, SortHeader, TabellenRahmen, ZEILE, type Sortierung } from "./sortable";
 
-export const PROJEKT_SPALTEN = ["name", "kunde", "status", "fortschritt", "zuletzt"] as const;
-export type ProjektSpalte = (typeof PROJEKT_SPALTEN)[number];
+import type { ProjektSpalte } from "@/lib/tabellen";
 
 /** Anteil als Zahl, darunter der Balken - eine Groesse, eine Farbe. */
 function Fortschritt({ done, total }: { done: number; total: number }) {
@@ -99,6 +98,7 @@ export function ProjectTable({
                 >
                   Zuletzt
                 </SortHeader>
+                <th scope="col" className="w-8 px-3 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -135,6 +135,17 @@ export function ProjectTable({
                     title={formatDate(project.updatedAt)}
                   >
                     {relativeDays(project.updatedAt)}
+                  </td>
+                  {/* Chevron wie in einer Systemliste: das Zeichen dafuer, dass
+                      die Zeile weiterfuehrt. */}
+                  <td className="px-3 py-3 text-right">
+                    <Link
+                      href={`/projekte/${project.id}`}
+                      aria-label={`${project.name} öffnen`}
+                      className="text-slate-400 transition-colors hover:text-slate-700"
+                    >
+                      ›
+                    </Link>
                   </td>
                 </tr>
               ))}

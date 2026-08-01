@@ -5,15 +5,34 @@ import {
   applyTemplatePhaseAction,
   deletePhaseAction,
   deleteTaskAction,
+  setTaskDetailsAction,
   setTaskStatusAction,
   toggleTaskAction,
 } from "@/lib/actions";
 import {
+  PRIORITY_LABEL,
+  PRIORITY_ORDER,
   TASK_DONE,
   TASK_STATUS_LABEL,
   TASK_STATUS_ORDER,
+  type Priority,
   type TaskStatus,
 } from "@/lib/status";
+import { AutoForm } from "../zeilen-bedienung";
+import { cn } from "@/lib/utils";
+
+/** Datum als Wert fuer <input type="date">. */
+function alsTagesWert(wert: Date | null): string {
+  if (!wert) return "";
+  const d = new Date(wert);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function istUeberfaellig(dueDate: Date | null, status: TaskStatus): boolean {
+  if (!dueDate || status === TASK_DONE) return false;
+  return new Date(dueDate) < new Date(new Date().toDateString());
+}
 import { Button, Card, CardBody, CardHeader, CardTitle, EmptyState, Input, Select } from "../ui";
 import { ConfirmButton } from "../confirm-button";
 import { ProgressBar } from "../bits";
@@ -208,6 +227,8 @@ function TaskRow({
     id: string;
     title: string;
     status: TaskStatus;
+    priority: Priority;
+    dueDate: Date | null;
     notes: string | null;
     mailLink?: { subject: string; deeplinkUrl: string | null } | null;
   } & Termin;
@@ -263,6 +284,39 @@ function TaskRow({
             <TerminChip kind="AUFGABE" start={task.plannedStart} end={task.plannedEnd} />
           </p>
         ) : null}
+        {/* Prioritaet und Faelligkeit gibt es seit heute auch hier - die Felder
+            lagen schon am Modell, sichtbar waren sie nur im freien Board. */}
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <AutoForm action={setTaskDetailsAction} className="flex items-center gap-1.5">
+            <input type="hidden" name="taskId" value={task.id} />
+            <Select
+              name="priority"
+              defaultValue={task.priority}
+              className="h-7 w-auto py-0 text-xs"
+              aria-label={`Priorität von ${task.title}`}
+            >
+              {PRIORITY_ORDER.map((p) => (
+                <option key={p} value={p}>
+                  {PRIORITY_LABEL[p]}
+                </option>
+              ))}
+            </Select>
+            <input
+              type="date"
+              name="dueDate"
+              defaultValue={alsTagesWert(task.dueDate)}
+              aria-label={`Fälligkeit von ${task.title}`}
+              className={cn(
+                "h-7 rounded-lg border border-slate-300 bg-white px-1.5 text-xs tabular-nums",
+                istUeberfaellig(task.dueDate, task.status) && "border-rose-300 font-medium text-rose-700",
+              )}
+            />
+            <button type="submit" className="nur-ohne-skript text-xs text-slate-500 hover:underline">
+              übernehmen
+            </button>
+          </AutoForm>
+        </div>
+
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <form action={setTaskStatusAction} className="flex items-center gap-1">
             <input type="hidden" name="taskId" value={task.id} />

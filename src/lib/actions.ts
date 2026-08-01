@@ -7,12 +7,16 @@ import {
   addAttachment,
   applyTemplatePhaseToProject,
   applyTemplateToProject,
+  ausDemPapierkorb,
   changeProjectStatus,
   changeTaskStatus,
   createProject,
   createTask,
+  inDenPapierkorb,
   setSchedule,
+  setzeWiedervorlage,
   templateFromProject,
+  wiedervorlageErledigt,
 } from "./service";
 import { resolveStoragePath } from "./storage";
 import { unlink } from "node:fs/promises";
@@ -25,6 +29,7 @@ import {
   projectCreateSchema,
   scheduleSchema,
   tagSchema,
+  taskDetailsSchema,
   taskSchema,
   templateSchema,
 } from "./validation";
@@ -280,7 +285,93 @@ export async function deleteTaskAction(formData: FormData): Promise<void> {
   const id = String(formData.get("taskId") ?? "");
   const projectId = String(formData.get("projectId") ?? "");
   if (!id) return;
-  await prisma.task.delete({ where: { id } });
+  // In den Papierkorb, nicht endgueltig - siehe service.inDenPapierkorb.
+  await inDenPapierkorb("AUFGABE", id);
+  refreshProject(projectId);
+}
+
+/** Setzt Prioritaet und Faelligkeit einer Aufgabe - auch fuer Projektaufgaben. */
+export async function setTaskDetailsAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("taskId") ?? "");
+  if (!id) return;
+
+  const parsed = taskDetailsSchema.safeParse({
+    priority: formData.get("priority") || undefined,
+    dueDate: formData.get("dueDate") ?? "",
+  });
+  if (!parsed.success) return;
+
+  const task = await prisma.task.update({
+    where: { id },
+    data: { priority: parsed.data.priority, dueDate: parsed.data.dueDate },
+    select: { projectId: true },
+  });
+  refreshProject(task.projectId);
+}
+
+/** Sammelaktion aus der Tabelle: mehrere Aufgaben auf einmal. */
+export async function bulkTaskAction(formData: FormData): Promise<void> {
+  const ids = formData.getAll("auswahl").map(String).filter(Boolean);
+  const was = String(formData.get("was") ?? "");
+  if (ids.length === 0) return;
+
+  if (was === "loeschen") {
+    for (const id of ids) await inDenPapierkorb("AUFGABE", id);
+  } else if (isTaskStatus(was)) {
+    // Einzeln statt updateMany: changeTaskStatus haelt die Position in der
+    // Zielspalte nach und legt Nachfolger wiederkehrender Aufgaben an.
+    for (const id of ids) await changeTaskStatus(id, was);
+  } else {
+    return;
+  }
+  refreshProject(null);
+}
+
+// --- Papierkorb -------------------------------------------------------------
+
+export async function restoreAction(formData: FormData): Promise<void> {
+  const art = String(formData.get("art") ?? "");
+  const id = String(formData.get("id") ?? "");
+  if (!id || (art !== "AUFGABE" && art !== "NOTIZ" && art !== "DATEI")) return;
+  const projectId = await ausDemPapierkorb(art, id);
+  refreshProject(projectId);
+  revalidatePath("/papierkorb");
+}
+
+export async function purgeAction(formData: FormData): Promise<void> {
+  const art = String(formData.get("art") ?? "");
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  if (art === "AUFGABE") await prisma.task.delete({ where: { id } });
+  else if (art === "NOTIZ") await prisma.note.delete({ where: { id } });
+  else if (art === "DATEI") {
+    const datei = await prisma.attachment.findUnique({ where: { id } });
+    if (!datei) return;
+    await prisma.attachment.delete({ where: { id } });
+    await unlink(resolveStoragePath(datei.storagePath)).catch(() => undefined);
+  } else return;
+
+  revalidatePath("/papierkorb");
+}
+
+// --- Wiedervorlage ----------------------------------------------------------
+
+export async function setFollowUpAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("mailLinkId") ?? "");
+  if (!id) return;
+  const roh = String(formData.get("followUpAt") ?? "").trim();
+  // Wie bei der Faelligkeit auf Mittag gelegt, damit keine Zeitumstellung den
+  // Tag kippt.
+  const am = roh ? new Date(`${roh}T12:00:00`) : null;
+  const projectId = await setzeWiedervorlage(id, am && !Number.isNaN(am.getTime()) ? am : null);
+  refreshProject(projectId);
+}
+
+export async function followUpDoneAction(formData: FormData): Promise<void> {
+  const id = String(formData.get("mailLinkId") ?? "");
+  if (!id) return;
+  const projectId = await wiedervorlageErledigt(id);
   refreshProject(projectId);
 }
 
@@ -317,7 +408,7 @@ export async function deleteNoteAction(formData: FormData): Promise<void> {
   const id = String(formData.get("noteId") ?? "");
   const projectId = String(formData.get("projectId") ?? "");
   if (!id) return;
-  await prisma.note.delete({ where: { id } });
+  await inDenPapierkorb("NOTIZ", id);
   refreshProject(projectId);
 }
 
@@ -342,10 +433,9 @@ export async function deleteAttachmentAction(formData: FormData): Promise<void> 
   const projectId = String(formData.get("projectId") ?? "");
   if (!id) return;
 
-  const attachment = await prisma.attachment.findUnique({ where: { id } });
-  if (!attachment) return;
-  await prisma.attachment.delete({ where: { id } });
-  await unlink(resolveStoragePath(attachment.storagePath)).catch(() => undefined);
+  // Die Datei bleibt liegen, bis der Papierkorb sie endgueltig hergibt -
+  // sonst waere Wiederherstellen eine leere Zusage.
+  await inDenPapierkorb("DATEI", id);
   refreshProject(projectId);
 }
 

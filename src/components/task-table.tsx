@@ -1,4 +1,8 @@
-import { deleteTaskAction, setTaskStatusAction } from "@/lib/actions";
+"use client";
+
+import { useState } from "react";
+import { bulkTaskAction, deleteTaskAction, setTaskDetailsAction, setTaskStatusAction } from "@/lib/actions";
+import { AutoForm, SammelLeiste } from "./zeilen-bedienung";
 import {
   PRIORITY_BADGE,
   PRIORITY_LABEL,
@@ -14,8 +18,15 @@ import { cn } from "@/lib/utils";
 import { KOPFZEILE, SortHeader, TabellenRahmen, ZEILE, type Sortierung } from "./sortable";
 import type { BoardTaskData } from "./task-board";
 
-export const AUFGABEN_SPALTEN = ["titel", "status", "prioritaet", "faellig", "termin"] as const;
-export type AufgabenSpalte = (typeof AUFGABEN_SPALTEN)[number];
+import type { AufgabenSpalte } from "@/lib/tabellen";
+
+/** Datum als Wert fuer <input type="date">. */
+function alsTagesWert(wert: Date | string | null): string {
+  if (!wert) return "";
+  const d = new Date(wert);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 /** Tagesgenau: heute faellig ist nicht ueberfaellig. */
 function faelligkeit(dueDate: Date | string | null) {
@@ -48,11 +59,41 @@ export function TaskTable({
   params: Record<string, string | string[] | undefined>;
   sortierung: Sortierung<AufgabenSpalte>;
 }) {
+  const [gewaehlt, setGewaehlt] = useState<string[]>([]);
+  const ids = tasks.map((t) => t.id);
+  const alleGewaehlt = ids.length > 0 && gewaehlt.length === ids.length;
+
+  const kaestchen = (id: string) => (
+    <input
+      type="checkbox"
+      checked={gewaehlt.includes(id)}
+      onChange={() =>
+        setGewaehlt((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]))
+      }
+      aria-label="Zeile auswählen"
+      className="h-4 w-4 accent-akzent"
+    />
+  );
+
+  const kopfKaestchen = (
+    <input
+      type="checkbox"
+      checked={alleGewaehlt}
+      onChange={() => setGewaehlt(alleGewaehlt ? [] : ids)}
+      aria-label="Alle auswählen"
+      className="h-4 w-4 accent-akzent"
+    />
+  );
+
   return (
+    <>
     <TabellenRahmen>
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead>
           <tr className={KOPFZEILE}>
+            <th scope="col" className="w-10 px-3 py-2.5">
+              {kopfKaestchen}
+            </th>
             <SortHeader pfad="/aufgaben" params={params} aktiv={sortierung} spalte="titel">
               Aufgabe
             </SortHeader>
@@ -100,6 +141,7 @@ export function TaskTable({
             const faellig = faelligkeit(task.dueDate);
             return (
               <tr key={task.id} className={ZEILE}>
+                <td className="px-3 py-2 align-top">{kaestchen(task.id)}</td>
                 <td className="px-3 py-2">
                   <p className="font-medium text-slate-900">{task.title}</p>
                   {task.notes ? (
@@ -114,7 +156,7 @@ export function TaskTable({
                 </td>
 
                 <td className="px-3 py-2">
-                  <form action={setTaskStatusAction}>
+                  <AutoForm action={setTaskStatusAction}>
                     <input type="hidden" name="taskId" value={task.id} />
                     <Select
                       name="status"
@@ -128,15 +170,15 @@ export function TaskTable({
                         </option>
                       ))}
                     </Select>
-                    {/* Ohne Skript im Browser braucht die Auswahl einen Knopf.
-                        Er bleibt unscheinbar, die Zeile soll ruhig aussehen. */}
+                    {/* Ohne Skript im Browser bleibt der Knopf sichtbar - mit
+                        Skript blendet ihn .auto-abschicken aus. */}
                     <button
                       type="submit"
-                      className="mt-1 text-xs text-slate-500 hover:text-slate-900 hover:underline"
+                      className="nur-ohne-skript mt-1 text-xs text-slate-500 hover:text-slate-900 hover:underline"
                     >
                       übernehmen
                     </button>
-                  </form>
+                  </AutoForm>
                 </td>
 
                 <td className="px-3 py-2">
@@ -159,26 +201,29 @@ export function TaskTable({
                 </td>
 
                 <td className="px-3 py-2">
-                  {faellig ? (
-                    <span
+                  {/* Direkt in der Zelle setzen - der Umweg ueber die
+                      Bearbeitungsmaske war der laestigste Klick der Liste. */}
+                  <AutoForm action={setTaskDetailsAction} className="flex flex-col gap-1">
+                    <input type="hidden" name="taskId" value={task.id} />
+                    <input type="hidden" name="priority" value={task.priority} />
+                    <input
+                      type="date"
+                      name="dueDate"
+                      defaultValue={alsTagesWert(task.dueDate)}
+                      aria-label={`Fälligkeit von ${task.title}`}
                       className={cn(
-                        "text-xs tabular-nums",
-                        faellig.ueberfaellig
-                          ? "font-medium text-rose-700"
-                          : faellig.heute
-                            ? "font-medium text-amber-900"
-                            : "text-slate-600",
+                        "h-7 w-auto rounded-lg border border-slate-300 bg-white px-1.5 text-xs tabular-nums",
+                        faellig?.ueberfaellig && "border-rose-300 font-medium text-rose-700",
+                        faellig?.heute && "font-medium text-amber-900",
                       )}
+                    />
+                    <button
+                      type="submit"
+                      className="nur-ohne-skript text-xs text-slate-500 hover:underline"
                     >
-                      {faellig.text}
-                    </span>
-                  ) : (
-                    /* aria-hidden: eine leere Zelle ist die richtige Aussage,
-                       der Strich ist nur fuers Auge. */
-                    <span aria-hidden className="text-xs text-slate-500">
-                      –
-                    </span>
-                  )}
+                      übernehmen
+                    </button>
+                  </AutoForm>
                 </td>
 
                 <td className="px-3 py-2">
@@ -218,5 +263,17 @@ export function TaskTable({
         </tbody>
       </table>
     </TabellenRahmen>
+
+      <SammelLeiste
+        gewaehlt={gewaehlt}
+        action={bulkTaskAction}
+        aufAbbrechen={() => setGewaehlt([])}
+        aktionen={[
+          { wert: "ERLEDIGT", beschriftung: "Erledigt" },
+          { wert: "IN_ARBEIT", beschriftung: "In Arbeit" },
+          { wert: "loeschen", beschriftung: "In den Papierkorb", gefaehrlich: true },
+        ]}
+      />
+    </>
   );
 }
