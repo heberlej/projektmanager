@@ -1,0 +1,40 @@
+{
+  "name": "projektmanager-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Projektmanager als Windows-Anwendung - dieselbe App, ohne WSL und Docker",
+  "main": "main.mjs",
+  "type": "module",
+  "scripts": {
+    "vorbereiten": "node scripts/beigaben-holen.mjs",
+    "start": "electron .",
+    "bauen": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "de.netplans.projektmanager",
+    "productName": "Projektmanager",
+    "directories": { "output": "dist" },
+    "files": ["main.mjs", "postgres.mjs", "package.json"],
+    "extraResources": [
+      { "from": "beigaben/pgsql", "to": "pgsql" },
+      { "from": "beigaben/app", "to": "app" }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "Projektmanager-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Projektmanager",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

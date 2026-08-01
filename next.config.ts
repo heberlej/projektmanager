@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Fuer die Windows-Fassung (siehe desktop/): standalone legt einen server.js
+  // samt der tatsaechlich benutzten Abhaengigkeiten ab, der ohne npm install
+  // startet. Fuer den Docker-Betrieb aendert das nichts.
+  output: "standalone",
   // Uploads laufen über Server Actions bzw. Route Handler - Default (1 MB) ist zu klein
   // fuer Auftrags-PDFs.
   experimental: {

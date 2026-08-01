@@ -1,0 +1,5 @@
+# Beigaben werden geholt, nicht versioniert: 250 MB Fremdbinaerdateien und ein
+# gebauter Server gehoeren nicht in die Historie.
+beigaben/
+dist/
+node_modules/
