@@ -113,10 +113,23 @@ weil jemand ein Programm entfernt.
 
 ## Gebaut wird außerhalb von OneDrive
 
-`%LOCALAPPDATA%\projektmanager-bau`, nicht im Repo-Ordner. Das ist keine
-Marotte, sondern Erfahrung aus dem ersten Versuch: 320 MB Postgres-Binärdateien
-in einen synchronisierten Ordner zu entpacken endete damit, dass das komplette
-`bin`-Verzeichnis fehlte – OneDrive greift beim Entpacken dazwischen.
+**Beides liegt draußen: die Baustelle und die Quelle.**
+
+Die Baustelle ist `%LOCALAPPDATA%\projektmanager-bau`, nicht der Repo-Ordner.
+Das ist keine Marotte, sondern Erfahrung aus dem ersten Versuch: 320 MB
+Postgres-Binärdateien in einen synchronisierten Ordner zu entpacken endete
+damit, dass das komplette `bin`-Verzeichnis fehlte – OneDrive greift beim
+Entpacken dazwischen.
+
+Dieselbe Ursache holte am 02.08.2026 den Next-Build ein, der noch aus dem
+OneDrive-Ordner lief: über **zwanzig Minuten** ein Kern voll ausgelastet, ohne
+dass eine einzige Datei in `.next` landete. Kein Deadlock, nur zehntausende
+kleine Dateien unter Synchronisation. Derselbe Build aus
+`C:\Users\jahe\projektmanager`: **neunzehn Sekunden.**
+
+Seitdem ist `C:\Users\jahe\projektmanager` der Arbeitsbaum für die
+Windows-Fassung – dort liegen `.next`, `node_modules` und das portable Node
+unter `desktop\.werkzeug`. Nach OneDrive wandert nur der fertige Installer.
 
 `scripts\zusammenbauen.ps1` legt die Baustelle an, kopiert Hülle und Anwendung
 dorthin und ruft electron-builder. Im Repo bleiben nur Quellen.

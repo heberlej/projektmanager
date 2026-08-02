@@ -13,8 +13,23 @@ Die Anwendung gibt es in **zwei Fassungen aus einer Codebasis**:
 | **Docker/WSL** | Next.js + Postgres + Caddy in `docker-compose.yml`, erreichbar über `https://pm.localhost`. Die produktive Installation liegt in der WSL unter `~/projektmanager` – **nicht** in diesem Ordner. |
 | **Windows** | Electron mit mitgeliefertem Postgres, alles unter `desktop/`. Siehe `desktop/ARCHITEKTUR.md`. |
 
-Dieser Ordner ist eine zweite Arbeitskopie desselben Git-Repositorys. Änderungen
-müssen nach `~/projektmanager` kopiert werden, bevor sie wirken.
+Es gibt **drei Arbeitskopien** desselben Repositorys, jede mit einer Aufgabe:
+
+| Ort | wofür |
+| --- | --- |
+| `~/projektmanager` (WSL) | die laufende Docker-Installation, hier laufen die Tests |
+| `C:\Users\jahe\projektmanager` | **der Bau-Arbeitsbaum der Windows-Fassung** |
+| `…\OneDrive\…\windowsapp\WSL` | Ablage und Git-Fernzugriff; hier **nicht** bauen |
+
+Änderungen an einer Kopie wirken in den anderen erst, wenn sie dort ankommen –
+über Git oder schlicht kopiert.
+
+**In OneDrive wird nicht gebaut.** `next build` lief dort über zwanzig Minuten,
+ohne eine einzige Datei nach `.next` zu schreiben; derselbe Build unter
+`C:\Users\jahe\projektmanager` braucht **neunzehn Sekunden**. Dieselbe Ursache
+hatte vorher schon das Entpacken der Postgres-Binärdateien zerlegt. Der fertige
+Installer wird nach OneDrive kopiert, sonst nichts – kein `node_modules`, kein
+`.next`.
 
 **Node liegt nicht auf dem Host.** Alles läuft über Container oder ein portables
 Node unter `desktop/.werkzeug/`.
@@ -40,11 +55,19 @@ wsl -d Ubuntu -- bash -c "cd ~/projektmanager && ./scripts/test.sh tests/aufgabe
 dann vitest – dieselbe Reihenfolge wie die CI. `npm test` allein prüft **keine
 Typen**; ein Fehler fällt sonst erst auf GitHub auf.
 
-Windows-Installer bauen (PowerShell, dauert einige Minuten):
+Windows-Installer bauen – **in `C:\Users\jahe\projektmanager`**, nicht in
+OneDrive. Erst die Anwendung, dann die Hülle:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File desktop\scripts\zusammenbauen.ps1
+powershell -Command "$env:Path = 'C:\Users\jahe\projektmanager\desktop\.werkzeug\node-v22.11.0-win-x64;' + $env:Path; Set-Location C:\Users\jahe\projektmanager; npm run build"
 ```
+
+```bash
+powershell -ExecutionPolicy Bypass -File C:\Users\jahe\projektmanager\desktop\scripts\zusammenbauen.ps1
+```
+
+Der erste Schritt dauert eine gute Minute, der zweite einige. Das Ergebnis liegt
+unter `%LOCALAPPDATA%\projektmanager-bau\dist\`.
 
 ## Aufbau
 
