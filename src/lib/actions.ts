@@ -19,6 +19,7 @@ import {
   wiedervorlageErledigt,
 } from "./service";
 import { resolveStoragePath } from "./storage";
+import { datenVerzeichnis, istDesktop, manifestErzeugen } from "./addin-einrichtung";
 import { unlink } from "node:fs/promises";
 import { isStatus, isTaskStatus, toggledTaskStatus, type TaskStatus } from "./status";
 import {
@@ -325,6 +326,24 @@ export async function bulkTaskAction(formData: FormData): Promise<void> {
     return;
   }
   refreshProject(null);
+}
+
+// --- Outlook-Add-in (nur Windows-Fassung) -----------------------------------
+
+export async function manifestErzeugenAction(): Promise<void> {
+  if (!istDesktop()) return;
+  await manifestErzeugen();
+  revalidatePath("/einstellungen");
+}
+
+/**
+ * Oeffnet den Ordner mit dem Manifest im Explorer. Nur in der Windows-Fassung,
+ * und der Pfad kommt aus der eigenen Umgebung, nicht von aussen.
+ */
+export async function ordnerOeffnenAction(): Promise<void> {
+  if (!istDesktop()) return;
+  const { spawn } = await import("node:child_process");
+  spawn("explorer.exe", [datenVerzeichnis()], { detached: true, stdio: "ignore" }).unref();
 }
 
 // --- Papierkorb -------------------------------------------------------------

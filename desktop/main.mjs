@@ -85,6 +85,12 @@ async function nextStarten(datenbankUrl) {
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
       TZ: "Europe/Berlin",
+      // Woran die Anwendung erkennt, dass sie im Fenster laeuft. Davon haengt
+      // die Einstellungsseite fuer das Add-in ab, die im Docker-Betrieb
+      // sinnlos waere.
+      PM_DESKTOP: "1",
+      PM_DATEN_VERZEICHNIS: datenVerzeichnis,
+      PM_ADDIN_PORT: String(ADDIN_PORT),
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,

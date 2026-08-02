@@ -2,6 +2,7 @@ import Link from "next/link";
 import { NavLink } from "@/components/nav-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Sprungfenster } from "@/components/sprungfenster";
+import { istDesktop } from "@/lib/addin-einrichtung";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -34,6 +35,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavLink href="/papierkorb" icon="⌫">
             Papierkorb
           </NavLink>
+          {/* Nur in der Windows-Fassung: dort richtet die Seite das Add-in ein.
+              Im Docker-Betrieb steht der Weg dorthin in der README. */}
+          {istDesktop() ? (
+            <NavLink href="/einstellungen" icon="⚙">
+              Einstellungen
+            </NavLink>
+          ) : null}
         </nav>
         <div className="mt-6 px-3">
           <Link
