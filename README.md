@@ -226,11 +226,35 @@ Schemaänderungen normale Migrationen.
 Nur für das **neue Outlook** und OWA. Das klassische Outlook wird nicht bedient.
 
 1. <https://pm.localhost> im Browser öffnen und prüfen, dass das Schloss grün ist.
-2. In Outlook: Einstellungen → Allgemein → **Add-Ins verwalten** → *Meine
-   Add-Ins* → *Benutzerdefiniertes Add-In* → **Aus Datei hinzufügen** →
-   `public/manifest.xml` auswählen (bzw. von
-   <https://pm.localhost/manifest.xml> herunterladen).
-3. Eine empfangene Mail öffnen → Schaltfläche **Zu Projekt**.
+2. Das Manifest besorgen: `public/manifest.xml` bzw.
+   <https://pm.localhost/manifest.xml> herunterladen.
+3. Das Manifest per PowerShell im eigenen Postfach registrieren (siehe unten).
+4. Eine empfangene Mail öffnen → Schaltfläche **Zu Projekt**.
+
+### Registrieren geht nur über Exchange Online
+
+Der naheliegende Weg – Einstellungen → Allgemein → **Add-Ins verwalten** → *Meine
+Add-Ins* → *Benutzerdefiniertes Add-In* → **Aus Datei hinzufügen** – steht in den
+meisten Postfächern nicht mehr zur Verfügung: der Menüpunkt fehlt oder eine
+Richtlinie des Tenants sperrt ihn. Stattdessen wird das Manifest per PowerShell
+am eigenen Konto eingetragen. Administratorrechte braucht es dafür nicht, nur
+das eigene Postfach:
+
+```powershell
+Install-Module ExchangeOnlineManagement -Scope CurrentUser
+Connect-ExchangeOnline -UserPrincipalName vorname.nachname@firma.de
+New-App -Mailbox vorname.nachname@firma.de -FileData ([System.IO.File]::ReadAllBytes("C:\Pfad\manifest.xml"))
+Disconnect-ExchangeOnline -Confirm:$false
+```
+
+Kontrolle mit `Get-App -Mailbox vorname.nachname@firma.de`. Ein geändertes
+Manifest ersetzt das alte **nicht** – die Kennung bleibt gleich, also erst
+`Remove-App -Mailbox … -Identity <AppId>`, dann `New-App` erneut. Schlägt schon
+`New-App` fehl, verbietet die Richtlinie auch diesen Weg; dann führt nur die
+Bereitstellung über das Microsoft-365-Admin-Center weiter.
+
+Die Windows-Fassung zeigt dieselben Befehle mit fertigem Pfad unter
+*Einstellungen*.
 
 Im Taskpane gibt es zwei Wege:
 
@@ -256,7 +280,7 @@ die Originalmail in Outlook.
 - Zertifikat: `https://pm.localhost` muss **im Browser** ohne Warnung laden.
   Outlook zeigt sonst nur eine weiße Fläche.
 - `mkcert -install` muss unter Windows gelaufen sein, nicht nur in der WSL.
-- Manifest geändert? Add-in entfernen und neu hinzufügen – Outlook cacht.
+- Manifest geändert? `Remove-App` und `New-App` – Outlook cacht.
 
 ---
 

@@ -1,4 +1,5 @@
-import { einrichtungsstand, istDesktop } from "@/lib/addin-einrichtung";
+import path from "node:path";
+import { datenVerzeichnis, einrichtungsstand, istDesktop } from "@/lib/addin-einrichtung";
 import { manifestErzeugenAction, ordnerOeffnenAction } from "@/lib/actions";
 import { Button, Card, CardBody, CardHeader, CardTitle, EmptyState } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,10 @@ export default async function EinstellungenPage() {
 
   const stand = await einrichtungsstand();
   const bereit = stand.zertifikat && stand.zuhoerer && stand.manifest;
+
+  // Auch wenn das Manifest noch nicht liegt: Der Pfad steht schon fest, und im
+  // Befehl unten soll er nicht als Platzhalter stehen.
+  const manifestPfad = stand.manifest ?? path.join(datenVerzeichnis(), "manifest-windows.xml");
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -185,25 +190,51 @@ mkcert -cert-file "${stand.zertifikatsOrdner}\\pm.localhost.pem" -key-file "${st
               </p>
             </Schritt>
 
-            <Schritt erfuellt={null} titel="In Outlook einbinden">
+            <Schritt erfuellt={null} titel="Add-in im Postfach registrieren">
+              <p>
+                Der Weg über <em>Add-Ins verwalten → Aus Datei hinzufügen</em> führt in den
+                meisten Postfächern nicht mehr zum Ziel – der Menüpunkt fehlt oder eine
+                Richtlinie des Tenants sperrt ihn. Das Manifest wird stattdessen per
+                PowerShell in Exchange Online am eigenen Konto eingetragen. Das ist einmalig
+                und braucht <strong>keine Administratorrechte</strong>, nur das eigene
+                Postfach.
+              </p>
+
+              <p>Einmalig das Exchange-Online-Modul installieren:</p>
+              <Befehl>Install-Module ExchangeOnlineManagement -Scope CurrentUser</Befehl>
+
+              <p>
+                Anmelden und das Manifest eintragen – die eigene Mailadresse an beiden
+                Stellen einsetzen:
+              </p>
+              <Befehl>{`Connect-ExchangeOnline -UserPrincipalName vorname.nachname@firma.de
+New-App -Mailbox vorname.nachname@firma.de -FileData ([System.IO.File]::ReadAllBytes("${manifestPfad}"))
+Disconnect-ExchangeOnline -Confirm:$false`}</Befehl>
+
+              <p>Ob es angekommen ist:</p>
+              <Befehl>{`Get-App -Mailbox vorname.nachname@firma.de | Format-Table DisplayName, Enabled`}</Befehl>
+
               <ol className="list-decimal space-y-1 pl-5">
-                <li>Neues Outlook öffnen</li>
-                <li>Einstellungen → Allgemein → <strong>Add-Ins verwalten</strong></li>
-                <li>
-                  Meine Add-Ins → <em>Benutzerdefiniertes Add-In</em> →{" "}
-                  <strong>Aus Datei hinzufügen</strong>
-                </li>
-                <li>Die Manifestdatei von oben auswählen</li>
+                <li>Outlook einmal schließen und neu öffnen (in OWA: Seite neu laden)</li>
                 <li>
                   Eine Mail öffnen – die Schaltfläche <strong>Zu Projekt</strong> liegt unter
                   „Apps" oder hinter den drei Punkten
                 </li>
               </ol>
+              <p>
+                Wurde das Manifest neu erzeugt, ersetzt <code className="rounded bg-slate-100 px-1">
+                  New-App
+                </code>{" "}
+                das alte nicht – die Kennung bleibt ja gleich. Erst entfernen, dann noch
+                einmal eintragen:
+              </p>
+              <Befehl>{`Remove-App -Mailbox vorname.nachname@firma.de -Identity <AppId aus Get-App>`}</Befehl>
+
               <p className="text-xs text-slate-500">
-                Fehlt der Menüpunkt <em>Benutzerdefiniertes Add-In</em>, sperrt eine
-                Tenant-Richtlinie das Sideloading – dann hilft nur das
-                Microsoft-365-Admin-Center. Und: Das Taskpane bleibt weiß, solange diese
-                Anwendung nicht läuft.
+                Schlägt schon <code className="rounded bg-slate-100 px-1">New-App</code> fehl,
+                verbietet die Tenant-Richtlinie auch diesen Weg – dann hilft nur die
+                Bereitstellung über das Microsoft-365-Admin-Center. Und: Das Taskpane bleibt
+                weiß, solange diese Anwendung nicht läuft.
               </p>
             </Schritt>
           </div>

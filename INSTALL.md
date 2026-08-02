@@ -291,15 +291,29 @@ Nur für das **neue Outlook** und OWA.
 
 1. <https://pm.localhost> im Browser öffnen und prüfen, dass das Schloss grün ist.
    Ohne das zeigt Outlook nur eine weiße Fläche.
-2. Outlook → Einstellungen → Allgemein → **Add-Ins verwalten** → *Meine Add-Ins*
-   → *Benutzerdefiniertes Add-In* → **Aus Datei hinzufügen** → `public/manifest.xml`
-3. Eine Mail öffnen. Die Schaltfläche **Zu Projekt** liegt im neuen Outlook unter
-   **„Apps"** oder unter *Weitere Aktionen* (drei Punkte) – nicht zwingend im
-   Menüband.
+2. Das Manifest (`public/manifest.xml`) per PowerShell im eigenen Postfach
+   registrieren:
 
-Fehlt der Menüpunkt *Benutzerdefiniertes Add-In* ganz, sperrt eine
-Tenant-Richtlinie das Sideloading. Dann führt nur die Bereitstellung über das
-Microsoft-365-Admin-Center weiter.
+   ```powershell
+   Install-Module ExchangeOnlineManagement -Scope CurrentUser
+   Connect-ExchangeOnline -UserPrincipalName vorname.nachname@firma.de
+   New-App -Mailbox vorname.nachname@firma.de -FileData ([System.IO.File]::ReadAllBytes("C:\Pfad\manifest.xml"))
+   Disconnect-ExchangeOnline -Confirm:$false
+   ```
+
+3. Outlook neu starten, dann eine Mail öffnen. Die Schaltfläche **Zu Projekt**
+   liegt im neuen Outlook unter **„Apps"** oder unter *Weitere Aktionen* (drei
+   Punkte) – nicht zwingend im Menüband.
+
+Der Weg über *Add-Ins verwalten → Meine Add-Ins → Benutzerdefiniertes Add-In →
+Aus Datei hinzufügen* funktioniert in den meisten Postfächern nicht mehr; der
+Menüpunkt fehlt oder eine Tenant-Richtlinie sperrt ihn. Deshalb der Umweg über
+Exchange Online. Prüfen lässt sich das Ergebnis mit
+`Get-App -Mailbox vorname.nachname@firma.de`; ein geändertes Manifest braucht
+erst `Remove-App -Mailbox … -Identity <AppId>`.
+
+Schlägt schon `New-App` fehl, sperrt die Richtlinie auch diesen Weg. Dann führt
+nur die Bereitstellung über das Microsoft-365-Admin-Center weiter.
 
 ---
 
