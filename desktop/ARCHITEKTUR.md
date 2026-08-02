@@ -35,6 +35,21 @@ Preis: rund 250 MB im Installer.
 
 ### 2. Das Add-in braucht HTTPS mit vertrauenswürdigem Zertifikat
 
+> **Gelöst, ohne den Zertifikatspeicher anzufassen.** Die mkcert-Wurzel liegt
+> seit der Ersteinrichtung der WSL-Fassung im Speicher, und ein gültiges
+> Zertifikat für `pm.localhost` gibt es dort auch. `scripts\addin-einrichten.ps1`
+> übernimmt beides, statt eine zweite Zertifizierungsstelle anzulegen – am
+> Vertrauen dieses Rechners ändert sich damit nichts. Die Anwendung stellt einen
+> HTTPS-Zuhörer auf Port 44383 davor (nicht 443, das verlangt
+> Administratorrechte) und reicht an den internen Port weiter. Ohne hinterlegtes
+> Zertifikat passiert schlicht nichts – wer das Add-in nicht braucht, merkt von
+> alldem nichts.
+>
+> Das Manifest bekommt eine eigene Kennung, sonst hält Outlook die Docker- und
+> die Windows-Fassung für dasselbe Add-in.
+
+Die ursprüngliche Überlegung, warum das der unangenehme Punkt war:
+
 Das ist der unangenehmste Punkt, und er betrifft nur das Outlook-Add-in – die
 Anwendung selbst läuft im eigenen Fenster ohne HTTPS.
 
@@ -122,15 +137,37 @@ bis die Windows-Fassung sich bewährt hat.
 
 ---
 
-## Offen
+## Stand
 
-Was noch fehlt, ehrlich aufgelistet:
+- [x] PostgreSQL-Binärdateien beschaffen und einbinden
+- [x] Erststart: `initdb`, Rolle anlegen, Migrationen fahren, Seed
+- [x] Freien Port suchen statt 3000 fest annehmen
+- [x] Sauberes Herunterfahren
+- [x] Installer bauen (`Projektmanager-Setup-0.1.0.exe`, 169 MB)
+- [x] Add-in-Einrichtung als eigener, erklärter Schritt
+- [x] Anwendungssymbol
+- [x] Übernahme der WSL-Daten
+- [ ] Signatur – ohne gekauftes Zertifikat warnt SmartScreen beim ersten Start
+- [ ] Aktualisierung auf eine neuere Fassung im laufenden Betrieb erproben
 
-- [ ] PostgreSQL-Binärdateien beschaffen und einbinden (Beschaffung beim Bauen,
-      nicht im Repo – 250 MB gehören nicht in Git)
-- [ ] Erststart: `initdb`, Rolle anlegen, Migrationen fahren, Seed
-- [ ] Freien Port suchen statt 3000 fest annehmen
-- [ ] Sauberes Herunterfahren (Postgres will `pg_ctl stop`, nicht `SIGKILL`)
-- [ ] Installer mit electron-builder bauen und auf einem frischen Benutzer testen
-- [ ] Add-in-Einrichtung als eigener, erklärter Schritt
-- [ ] Aktualisierung: Migrationen beim Start einer neueren Fassung
+### Stolpersteine, die Zeit gekostet haben
+
+Alle stehen als Begründung an der jeweiligen Stelle im Skript. Der Reihe nach:
+
+1. **OneDrive** hat das Entpacken der 320 MB zerlegt – danach fehlte das
+   komplette `bin`-Verzeichnis. Gebaut wird deshalb außerhalb.
+2. **Electrons Nachinstallation** ruft blank `node`; mit portablem Node muss der
+   PATH gesetzt sein.
+3. **electron-builder** wollte macOS-Symlinks anlegen, was Windows ohne
+   Administratorrechte verweigert. `signAndEditExecutable: false` umgeht das.
+4. **Die Prisma-Kommandozeile** ließ sich nicht paketweise mitnehmen – npm legt
+   Abhängigkeiten flach ab, und `Copy-Item` schiebt Ordner ineinander statt sie
+   zu verschmelzen. Jetzt löst npm den Baum in einem eigenen Verzeichnis auf.
+5. **Ein selbstgeschriebenes ICO** hat electron-builder nicht angenommen; aus
+   dem PNG erzeugt es die Größen selbst.
+6. **`pg_ctl start` kehrt unter PowerShell nicht zurück**, weil der Server die
+   Ausgabekanäle offen hält – auch mit `-l`. Ein Anlauf hing daran eine Stunde.
+   Der Umzug startet `postgres.exe` jetzt direkt und wartet mit `pg_isready`.
+7. **`\restrict` im Dump**: `pg_dump` 16.14 aus dem Container schreibt eine
+   Anweisung, die das mitgelieferte `psql` 16.4 nicht kennt. Sie wird vor dem
+   Einspielen herausgefiltert.

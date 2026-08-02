@@ -10,8 +10,18 @@ import { app, BrowserWindow, shell, dialog } from "electron";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
+import https from "node:https";
+import http from "node:http";
 import { Datenbank, freierPort } from "./postgres.mjs";
+
+/**
+ * Fester Port fuer das Outlook-Add-in.
+ *
+ * Fest, weil er im Manifest steht - ein wechselnder Port waere dort nicht
+ * abbildbar. Nicht 443, weil das Administratorrechte verlangt.
+ */
+const ADDIN_PORT = 44383;
 
 const hier = path.dirname(fileURLToPath(import.meta.url));
 
@@ -138,6 +148,55 @@ async function seedFahren(datenbankUrl) {
   });
 }
 
+/**
+ * HTTPS-Zuhoerer fuer das Add-in.
+ *
+ * Outlook laedt Add-in-Seiten nur ueber HTTPS mit einem Zertifikat, dem Windows
+ * vertraut. Das Fenster selbst braucht das nicht - deshalb laeuft hier nur ein
+ * schlanker Vorschalt-Server, der an den internen Port weiterreicht.
+ *
+ * Ohne hinterlegtes Zertifikat passiert schlicht nichts: wer das Add-in nicht
+ * benutzt, bekommt weder einen Zuhoerer noch eine Nachfrage. Eingerichtet wird
+ * es mit scripts\addin-einrichten.ps1 - ein bewusster, eigener Schritt.
+ */
+async function addinZuhoererStarten(zielPort) {
+  const ordner = path.join(datenVerzeichnis, "zertifikate");
+  let cert;
+  let key;
+  try {
+    cert = await readFile(path.join(ordner, "pm.localhost.pem"));
+    key = await readFile(path.join(ordner, "pm.localhost-key.pem"));
+  } catch {
+    return null;
+  }
+
+  const server = https.createServer({ cert, key }, (anfrage, antwort) => {
+    const weiter = http.request(
+      {
+        host: "127.0.0.1",
+        port: zielPort,
+        path: anfrage.url,
+        method: anfrage.method,
+        headers: anfrage.headers,
+      },
+      (innen) => {
+        antwort.writeHead(innen.statusCode ?? 502, innen.headers);
+        innen.pipe(antwort);
+      },
+    );
+    weiter.on("error", () => {
+      antwort.writeHead(502);
+      antwort.end("Anwendung nicht erreichbar");
+    });
+    anfrage.pipe(weiter);
+  });
+
+  return new Promise((aufloesen) => {
+    server.on("error", () => aufloesen(null)); // Port belegt - dann eben ohne
+    server.listen(ADDIN_PORT, "127.0.0.1", () => aufloesen(ADDIN_PORT));
+  });
+}
+
 async function hochfahren() {
   await mkdir(path.join(datenVerzeichnis, "uploads"), { recursive: true });
 
@@ -159,6 +218,9 @@ async function hochfahren() {
 
   await schrittMelden("Anwendung wird gestartet …");
   const port = await nextStarten(url);
+
+  const addin = await addinZuhoererStarten(port);
+  if (addin) console.log(`[addin] erreichbar unter https://pm.localhost:${addin}`);
 
   await fenster.loadURL(`http://127.0.0.1:${port}`);
 }

@@ -19,6 +19,7 @@
     "productName": "Projektmanager",
     "directories": { "output": "dist" },
     "files": ["main.mjs", "postgres.mjs", "package.json"],
+    "icon": "symbol.png",
     "extraResources": [
       { "from": "beigaben/pgsql", "to": "pgsql" },
       { "from": "beigaben/app", "to": "app" }

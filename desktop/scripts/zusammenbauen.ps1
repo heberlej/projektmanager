@@ -29,6 +29,9 @@ Write-Host "[1/5] Huelle kopieren"
 Copy-Item (Join-Path $quelle "main.mjs") $bau -Force
 Copy-Item (Join-Path $quelle "postgres.mjs") $bau -Force
 Copy-Item (Join-Path $quelle "package.json") $bau -Force
+# PNG statt ICO: electron-builder erzeugt die Windows-Symbolgroessen selbst,
+# ein von Hand geschriebenes ICO hat es nicht angenommen.
+Copy-Item (Join-Path $quelle "symbol.png") $bau -Force
 
 # --- 2. Anwendung ------------------------------------------------------------
 Write-Host "[2/5] Anwendung uebernehmen"
