@@ -18,3 +18,13 @@ backups/
 
 # Werkzeuge und Bauergebnisse der Windows-Fassung
 desktop/.werkzeug/
+
+# Spiegel der Sicherungen in der Windows-Arbeitskopie: enthaelt echte
+# Projektdaten und gehoert nicht in ein oeffentliches Repo.
+sicherungen/
+.claude/
+
+# Zwischendateien beim Bearbeiten der .env - enthalten dieselben Werte.
+.env.tmp
+.env.*
+!.env.example
